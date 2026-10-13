@@ -20,7 +20,8 @@ Live: https://alexandre-pham.github.io/chess-trainer/
   come back sooner.
 - **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, your games).
 - **Game review**: your recent Lichess games, annotated, with playable engine lines.
-- **Squares**: coordinate exercises on real positions, with speed rounds.
+- **Squares**: coordinate exercises on real positions, with speed rounds, and
+  playing famous games or great players' games from their written moves.
 - **Progress**: time per day and activity, calendar, streaks, accuracy per opening.
 - **Sync**: progress saved in a secret GitHub gist, shared across browsers.
 
@@ -57,6 +58,7 @@ js/daily.js        Today's plan and the check of your games
 js/review.js       game review and playable lines
 js/progress.js     time tracking, calendar, Progress page
 data/openings.json opening lines and an index of positions
+data/games.json    famous games and a selection of great players' games
 vendor/            chess.js and Stockfish
 pieces/            piece images
 ```
@@ -71,4 +73,7 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
 - chess.js 0.10.3 by Jeff Hlywa: BSD 2-Clause, see `vendor/chess.js-LICENSE.txt`.
 - Opening names and lines: [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings), CC0.
 - Pieces: cburnett, CC BY-SA 3.0.
+- Famous and great players' games (`data/games.json`): game scores from the pgnmentor.com
+  collections, as packaged in [Dragjon/chessdatabase](https://github.com/Dragjon/chessdatabase) (MIT);
+  Deep Blue vs Kasparov 1997 from the python-chess test data.
 - Move statistics: Lichess Opening Explorer. In-browser models: WebLLM (MLC).
