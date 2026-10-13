@@ -193,7 +193,10 @@ details.adv summary{cursor:pointer;margin-bottom:6px}
 .c-src{font-size:13px;color:var(--muted);min-height:20px}
 .c-prompt{font-family:var(--serif);font-size:clamp(22px,2.6vw,30px);line-height:1.2;margin:4px 0 12px}
 .c-prompt b{font-weight:600}
-.c-line{font-family:var(--serif);font-size:18px;line-height:1.8;margin-bottom:12px}
+.c-line{font-family:var(--serif);font-size:18px;line-height:1.8;margin-bottom:12px;max-height:190px;overflow:auto}
+.c-game{font-size:14px;color:var(--muted);margin:-6px 0 10px}
+.c-game b{color:var(--ink);font-weight:600}
+.c-line .c-sep{color:var(--accent);font-weight:600}
 .c-line .done{color:var(--good)} .c-line .now{background:var(--accent-soft);border-radius:4px;padding:1px 4px;font-weight:600} .c-line .todo{color:var(--muted)}
 .c-input{display:flex;gap:8px;margin-bottom:12px}
 .c-input input{flex:1;max-width:220px;font-family:var(--serif);font-size:22px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}

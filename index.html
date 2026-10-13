@@ -218,6 +218,20 @@
         <div class="seg" role="group" aria-label="Board seen from" id="cSides"></div>
       </div>
     </div>
+    <div class="row c-top" id="cPlayOpts" hidden>
+      <div class="field">
+        <label class="field-label" for="cSrc2">Moves from</label>
+        <select id="cSrc2"><option value="famous">Famous games</option><option value="players">Great players</option><option value="mine">My Lichess games</option><option value="lines">My opening</option></select>
+      </div>
+      <div class="field" id="cPlayerF">
+        <label class="field-label" for="cPlayer">Player</label>
+        <select id="cPlayer"></select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="cLen">Length</label>
+        <select id="cLen"><option value="10">10 moves</option><option value="20">20 moves</option><option value="30" selected>30 moves</option><option value="40">40 moves</option><option value="0">Whole game</option></select>
+      </div>
+    </div>
     <div class="train c-train">
       <div>
         <div class="board-wrap" id="cBoardWrap">

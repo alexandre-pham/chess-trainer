@@ -6,6 +6,7 @@ import { renderSetup } from './setup.js';
 import { Sync } from './sync.js';
 import { PNAME, cancelCoach } from './coach.js';
 import { BRUSH, files, game, renderAll } from './trainer.js';
+import { Engine, uciMove, waitEngine } from './engine.js';
 import { Daily, openToday, renderDayBar } from './daily.js';
 
 /* ================= coordinates trainer ================= */
@@ -32,7 +33,7 @@ function weightedSquare(side, exclude){
   for(let i = 0; i < ALL_SQ.length; i++){ r -= w[i]; if(r <= 0) return ALL_SQ[i]; }
   return ALL_SQ[0];
 }
-const C = {mode: store.get('cMode', 'read'), side: store.get('cSide', 'w'), orient: 'w', fen: null, hl: {}, arrows: [], q: null, ok: 0, bad: 0, sel: null, timer: null, end: 0, round: null};
+const C = {mode: store.get('cMode', 'read'), side: store.get('cSide', 'w'), src: store.get('cSrc', 'famous'), len: store.get('cLen', 30), player: store.get('cPlayer', 'Bobby Fischer'), orient: 'w', fen: null, hl: {}, arrows: [], q: null, ok: 0, bad: 0, sel: null, timer: null, end: 0, round: null};
 const COLOR = c => c === 'w' ? 'White' : 'Black';
 const MODES = [['read', 'Read the move'], ['play', 'Play from notation'], ['find', 'Find the squares'], ['speed', 'Speed round']];
 
@@ -108,30 +109,106 @@ function qRead(){
   }};
 }
 
-/* --- exercise 2: play a written line on the board --- */
-function qPlay(){
-  pickOrient();
-  const line = randomLine(6), sans = line[2].split(' ').slice(0, Math.min(LINE_PLIES[LINES.indexOf(line)], 6 + Math.floor(Math.random() * 5)));
+/* --- exercise 2: play a written game or line on the board --- */
+// famous games and great players' games: data/games.json (moves from pgnmentor.com collections), loaded the first time
+let GAMES = null, famousNext = 0, myGames = null;
+async function loadGames(){
+  if(!GAMES){ const r = await fetch(new URL('../data/games.json', import.meta.url)); if(!r.ok) throw new Error('Could not load the games collection.'); GAMES = await r.json(); }
+  return GAMES;
+}
+async function loadMyGames(){
+  if(myGames) return myGames;
+  if(!S.token) throw new Error('Connect Lichess in Settings to use your own games.');
+  let user = S.user;
+  if(!user || user === 'Lichess'){ const a = await fetch('https://lichess.org/api/account', {headers: {Authorization: 'Bearer ' + S.token}}); if(a.ok) user = (await a.json()).username; }
+  if(!user) throw new Error('Could not find your Lichess username.');
+  const res = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}?max=40&moves=true&opening=true&clocks=false&evals=false`, {headers: {Authorization: 'Bearer ' + S.token, Accept: 'application/x-ndjson'}});
+  if(!res.ok) throw new Error('Lichess answered with an error (' + res.status + ').');
+  const name = p => (p.user && p.user.name) || (p.aiLevel ? 'Stockfish ' + p.aiLevel : 'Anonymous');
+  myGames = (await res.text()).split('\n').filter(Boolean).map(l => { try{ return JSON.parse(l); }catch(e){ return null; } })
+    .filter(g => g && (!g.variant || g.variant === 'standard') && (g.moves || '').split(' ').length >= 20)
+    .map(g => ({w: name(g.players.white), b: name(g.players.black), where: `Lichess, ${g.speed || ''} ${new Date(g.createdAt).toLocaleDateString(undefined, {day: 'numeric', month: 'short', year: 'numeric'})}`, result: g.winner ? (g.winner === 'white' ? '1-0' : '0-1') : '½-½', moves: g.moves}));
+  if(!myGames.length) throw new Error('No finished games of 10 moves or more found on your Lichess account.');
+  return myGames;
+}
+// "My opening": a named line of the opening you train, continued by a real game that started with it
+// (from the famous and great players' games), or by Stockfish when no game in the collection matches
+let allGames = null;
+async function openingGame(){
+  const db = await loadGames();
+  if(!allGames) allGames = [
+    ...db.famous.map(g => ({moves: g.moves, label: `${g.w} – ${g.b}`, sub: [g.where, g.result].filter(Boolean).join(', ')})),
+    ...Object.values(db.players).flat().map(g => ({moves: g[5], label: `${g[0]} – ${g[1]}`, sub: [g[2], g[3], g[4]].filter(Boolean).join(', ')}))
+  ];
+  const want = C.len ? C.len * 2 : 80;
+  // your exact selection first (e.g. the Najdorf), then the rest of its family (the Sicilian)
+  const shuffle = a => a.sort(() => Math.random() - .5);
+  const exact = shuffle(LINES.map((l, i) => i).filter(i => selFlags[i] && LINE_PLIES[i] >= 4));
+  const family = shuffle(cPool().filter(i => !selFlags[i] && LINE_PLIES[i] >= 4));
+  const pool = (exact.length ? exact.concat(family) : family).slice(0, 800);
+  for(const li of pool){
+    const pre = LINES[li][2] + ' ';
+    const hits = allGames.filter(g => (g.moves + ' ').startsWith(pre) && g.moves.split(' ').length >= Math.min(want, LINE_PLIES[li] + 20));
+    if(hits.length){
+      const g = hits[Math.floor(Math.random() * hits.length)];
+      return {label: LINES[li][1], sub: `${Math.ceil(LINE_PLIES[li] / 2)} moves of theory, then continued as in ${g.label}, ${g.sub}`, moves: g.moves.split(' '), theory: LINE_PLIES[li]};
+    }
+  }
+  // no game in the collection starts with these lines: let Stockfish continue the longest one
+  const li = pool.reduce((a, b) => LINE_PLIES[b] > LINE_PLIES[a] ? b : a, pool[0]);
+  const sans = LINES[li][2].split(' '), theory = sans.length;
+  Engine.init(); await waitEngine();
+  if(Engine.available()){
+    const g = new Chess(); sans.forEach(m => g.move(m));
+    while(sans.length < want && !g.game_over()){
+      cAsk('', `Continuing the line with Stockfish… ${Math.round(sans.length / want * 100)}%`);
+      const r = await Engine.analyse(g.fen(), 8);
+      if(!r || C.mode !== 'play') break;
+      sans.push(uciMove(g, r.pv[0]).san);
+    }
+  }
+  return {label: LINES[li][1], sub: sans.length > theory ? `${Math.ceil(theory / 2)} moves of theory, then Stockfish's moves` : '', moves: sans, theory};
+}
+async function pickGame(){
+  if(C.src === 'lines') return openingGame();
+  if(C.src === 'mine'){ const list = await loadMyGames(), g = list[Math.floor(Math.random() * list.length)]; return {label: `${g.w} – ${g.b}`, sub: `${g.where}, ${g.result}`, moves: g.moves.split(' ')}; }
+  const db = await loadGames();
+  if(C.src === 'players'){
+    const list = db.players[C.player] || Object.values(db.players)[0], g = list[Math.floor(Math.random() * list.length)];
+    return {label: `${g[0]} – ${g[1]}`, sub: [g[2], g[3], g[4]].filter(Boolean).join(', '), moves: g[5].split(' ')};
+  }
+  const g = db.famous[famousNext++ % db.famous.length];  // go through the famous games in order
+  return {label: `${g.w} – ${g.b}`, sub: [g.title, g.where, g.result].filter(Boolean).join(', '), moves: g.moves.split(' ')};
+}
+async function qPlay(){
+  pickOrient(); C.q = null;
+  cAsk('', 'Loading the game…');
+  let game;
+  try{ game = await pickGame(); }catch(e){ cAsk('', esc(e.message), {actions: [['Try again', qPlay, 'primary']]}); return; }
+  if(C.mode !== 'play') return;
+  const plies = C.len ? C.len * 2 : game.moves.length, sans = game.moves.slice(0, plies), whole = sans.length === game.moves.length;
   const g = new Chess(); let i = 0, tries = 0, firstTry = 0;
   C.fen = g.fen(); C.hl = {}; C.arrows = []; C.sel = null; cRender();
-  const showLine = () => fmtMoves(sans, 0).map((t, j) => `<span class="${j < i ? 'done' : j === i ? 'now' : 'todo'}">${esc(t)}</span>`).join(' ');
-  const ask = () => cAsk(line[1], i < sans.length ? `Play <b>${esc(sans[i])}</b> for ${COLOR(g.turn())}.` : 'Line complete.', {line: showLine(), actions: [['Skip this line', qPlay]]});
+  const head = `<div class="c-game"><b>${esc(game.label)}</b>${game.sub ? ', ' + esc(game.sub) : ''}</div>`;
+  const showLine = () => head + '<div>' + fmtMoves(sans, 0).map((t, j) => (game.theory && j === game.theory ? '<span class="c-sep" title="End of the named line">|</span> ' : '') + `<span class="${j < i ? 'done' : j === i ? 'now' : 'todo'}">${esc(t)}</span>`).join(' ') + '</div>';
+  const keepInView = () => { const n = $('cLine').querySelector('.now'); if(n) n.scrollIntoView({block: 'nearest'}); };
+  const ask = () => { cAsk('', i < sans.length ? `Play <b>${esc(sans[i])}</b> for ${COLOR(g.turn())}.` : 'Done.', {line: showLine(), actions: [['Skip this game', qPlay]]}); keepInView(); };
   ask();
   C.q = {onClick(sq){
     if(i >= sans.length) return;
     const p = g.get(sq);
     if(!C.sel || (p && p.color === g.turn())){ if(p && p.color === g.turn()){ C.sel = sq; C.hl = {[sq]: 'pick'}; cRender(); } return; }
     const want = new Chess(g.fen()).move(sans[i]);
-    const mv = g.move({from: C.sel, to: sq, promotion: 'q'});
+    const mv = g.move({from: C.sel, to: sq, promotion: want.promotion || 'q'});
     if(mv && mv.san === want.san){
-      if(!tries) firstTry++;
-      if(!tries) logSquare(want.to, true); i++; tries = 0; C.sel = null; C.hl = {[mv.from]: 'good', [mv.to]: 'good'}; C.fen = g.fen(); cRender();
+      if(!tries){ firstTry++; logSquare(want.to, true); }
+      i++; tries = 0; C.sel = null; C.hl = {[mv.from]: 'good', [mv.to]: 'good'}; C.fen = g.fen(); cRender();
       if(i >= sans.length){
-        cAsk(line[1], 'Line complete.', {line: showLine()});
+        cAsk('', whole ? (C.src === 'lines' ? 'End of the line.' : 'End of the game.') : `Stopped after move ${Math.ceil(sans.length / 2)}.`, {line: showLine()});
         C.ok += firstTry; C.bad += sans.length - firstTry; cStats();
         $('cFeedback').hidden = false; $('cFeedback').className = 'status ' + (firstTry === sans.length ? 'good' : 'bad');
         $('cFeedback').innerHTML = `<div class="st-title">${firstTry} of ${sans.length} moves on the first try</div>`;
-        cActions([['Next', qPlay, 'primary']]);
+        cActions([['Next game', qPlay, 'primary']]);
       } else ask();
     } else {
       if(mv) g.undo();
@@ -272,7 +349,17 @@ function renderCoordStats(){
 function cSquaresFor(side){ const s = []; for(let r=0;r<8;r++) for(let f=0;f<8;f++){ const rank = side === 'w' ? 8 - r : r + 1, file = side === 'w' ? f : 7 - f; s.push(files[file] + rank); } return s; }
 
 /* --- navigation --- */
+function cRenderPlayOpts(){
+  $('cPlayOpts').hidden = C.mode !== 'play';
+  $('cSrc2').value = C.src; $('cLen').value = String(C.len);
+  $('cPlayerF').hidden = C.src !== 'players';
+  if(C.src === 'players' && !$('cPlayer').options.length) loadGames().then(db => {
+    $('cPlayer').innerHTML = Object.keys(db.players).map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    $('cPlayer').value = db.players[C.player] ? C.player : Object.keys(db.players)[0];
+  }).catch(() => {});
+}
 function cRenderControls(){
+  cRenderPlayOpts();
   $('cModes').innerHTML = MODES.map(([v, l]) => `<button class="chip" data-cmode="${v}" aria-pressed="${C.mode === v}">${l}</button>`).join('');
   $('cModes').querySelectorAll('[data-cmode]').forEach(b => b.onclick = () => { C.mode = b.dataset.cmode; store.set('cMode', C.mode); cStart(); });
   $('cSides').innerHTML = [['w', 'White'], ['b', 'Black'], ['m', 'Both']].map(([v, l]) => `<button data-cside="${v}" aria-pressed="${C.side === v}">${l}</button>`).join('');
@@ -326,5 +413,8 @@ function init(){
   });
   $('toCoords').onclick = () => { Daily.active = null; openCoords(); };
   $('cBack').onclick = closeCoords;
+  $('cSrc2').onchange = e => { C.src = e.target.value; store.set('cSrc', C.src); cRenderPlayOpts(); qPlay(); };
+  $('cLen').onchange = e => { C.len = +e.target.value; store.set('cLen', C.len); qPlay(); };
+  $('cPlayer').onchange = e => { C.player = e.target.value; store.set('cPlayer', C.player); qPlay(); };
 }
 export { init };
