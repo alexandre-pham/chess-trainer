@@ -1,8 +1,10 @@
 // The coach: in-browser model or OpenAI-compatible server, prompts, follow-up questions.
-import { $, esc, pct } from './util.js';
+import { $, esc, pct, sleep } from './util.js';
 import { S, fenAfter } from './book.js';
 import { WEB_MODELS, webName } from './settings.js';
-import { Explorer, scoreFor } from './explorer.js';
+import { Explorer } from './explorer.js';
+import { analyseMistake, evalWords, lineFens } from './analysis.js';
+import { wikiFor } from './wikibooks.js';
 import { explainInfo, files, game, lastNamed, phase, renderStatus, setExplainInfo, wrongInfo } from './trainer.js';
 import { Engine, fmtEval, fmtLine, pvToSan, renderEngineNote, waitEngine } from './engine.js';
 
@@ -124,10 +126,38 @@ function newCoachCtl(){ cancelCoach(); coachCtl = new AbortController(); return 
 function cancelCoach(){ if(coachCtl){ try{ coachCtl.abort(); }catch(e){} coachCtl = null; } }
 function historyText(sans){ let s = ''; sans.forEach((m, i) => { if(i % 2 === 0) s += (i/2 + 1) + '. '; s += m + ' '; }); return s.trim(); }
 const LANG = {en: 'English', fr: 'French'};
+// the app's own analysis (always correct) and the Wikibooks text, shown above the coach
+function renderInsight(info, target){
+  const el = target || document.getElementById('insight'); if(!el || !info) return;
+  let h = '';
+  if(info.analysis && info.analysis.length) h += `<div class="ins-h">What happens</div><ul class="ins-list">${info.analysis.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
+  if(info.wiki === 'loading') h += '<div class="ins-wiki ins-muted">Looking for an explanation of this opening on Wikibooks…</div>';
+  else if(info.wiki) h += `<details class="ins-wiki"><summary>What the opening books say: ${esc(fmtLine(new Chess().fen(), info.wiki.moves))}</summary><div class="ins-wtext">${esc(info.wiki.text)}</div><a href="${esc(info.wiki.url)}" target="_blank" rel="noopener">Read the full page on Wikibooks</a> <span class="ins-muted">(Chess Opening Theory, CC BY-SA)</span></details>`;
+  el.innerHTML = h; el.style.display = h ? '' : 'none';
+}
+const wikiQuick = sans => Promise.race([wikiFor(sans), sleep(6000).then(() => null)]);
+function factsBlock(info){
+  let t = '';
+  if(info.analysis && info.analysis.length) t += 'Facts computed by the app (always correct):\n' + info.analysis.map(x => '- ' + x).join('\n') + '\n';
+  if(info.wiki && info.wiki.text) t += `\nWhat a human-written opening book (Wikibooks) says about the position after ${fmtLine(new Chess().fen(), info.wiki.moves)}:\n"${info.wiki.text.slice(0, 1200)}"\n`;
+  return t;
+}
+const SUMMARY_RULES = 'Use only the facts and the opening-book text above. Do not mention any move, piece or square that does not appear above. If the facts do not explain something, leave it out.';
 async function coachExplain(info){
-  if(!Coach.available()){ info.coachState = 'unavail'; return; }
   const colorName = S.color === 'w' ? 'White' : 'Black';
   const played = game.history().slice(0, -1);
+  // 1. the app's own analysis
+  const e = info.engine, bestSan = info.cands && info.cands[0] && info.cands[0].san;
+  const toWhite = c => c == null ? null : (S.color === 'w' ? c : -c);   // the engine values are from your side
+  info.analysis = analyseMistake({before: info.before, played: info.move.san, playedLine: e ? e.refutation : [], best: bestSan, bestLine: (e && e.bestLine) || [], evPlayed: e ? toWhite(e.you) : null, evBest: e ? toWhite(e.book) : null});
+  info.checkFens = [...lineFens(info.before, [info.move.san, ...(e ? e.refutation : [])]), ...(bestSan ? lineFens(info.before, [bestSan, ...((e && e.bestLine) || [])]) : [])];
+  info.fens = [info.before, e ? e.afterFen : fenAfter(info.before, info.move.san)];
+  // 2. the human explanation of the opening
+  info.wiki = played.length && played.length <= 30 ? 'loading' : null;
+  if(wrongInfo === info) renderInsight(info);
+  if(info.wiki === 'loading'){ info.wiki = await wikiQuick(played); if(wrongInfo !== info) return; renderInsight(info); }
+  // 3. a short AI summary of those facts, checked before it is shown
+  if(!Coach.available()){ info.coachState = 'unavail'; return; }
   const candTxt = info.cands.slice(0, 4).map(c => {
     const bits = [];
     if(c.label) bits.push(`leads to "${c.label}"`);
@@ -135,35 +165,50 @@ async function coachExplain(info){
     if(c.ev != null) bits.push(`Stockfish ${fmtEval(c.ev)}`);
     return c.san + (bits.length ? ' (' + bits.join(', ') + ')' : '');
   }).join('; ');
-  const yourStats = info.mv ? `${info.move.san} is played in ${pct(info.mv.share)} of games here, ${colorName} scores ${pct(scoreFor(info.mv, S.color))}.` : `${info.move.san} is almost never played here.`;
   const context = info.phase === 'book' ? (info.otherName ? `${info.move.san} is a known move but leads to "${info.otherName}", outside the chosen repertoire.` : `${info.move.san} is not in the opening book.`)
     : info.phase === 'stats' ? `The named theory has ended; the main moves come from games of ${Explorer.label()}.` : 'The named theory has ended; moves are judged by the engine.';
-  const eng = info.engine ? `Stockfish, scores from ${colorName}'s point of view in pawns: after ${info.cands[0].san}: ${fmtEval(info.engine.book)}; after ${info.move.san}: ${fmtEval(info.engine.you)}. Engine's best continuation after ${info.move.san}: ${fmtLine(info.engine.afterFen, info.engine.refutation)}. Verdict: ${info.verdict}. ${info.engine.loss < 30 ? `The difference is only ${(Math.max(0, info.engine.loss) / 100).toFixed(1)} pawns, so both moves are practically equal: say that ${info.move.san} is fine but less common, and do not call it inferior.` : `The difference is ${(info.engine.loss / 100).toFixed(1)} pawns.`} The continuation shows the engine's best moves for both sides; do not describe it as good or bad for one side unless the evaluations above say so.` : 'No engine evaluation is available; do not claim concrete tactics.';
+  const lines = e ? `Engine line after ${info.move.san}: ${fmtLine(e.afterFen, e.refutation)}.${e.bestLine && e.bestLine.length ? ` Engine line after ${bestSan}: ${fmtLine(fenAfter(info.before, bestSan), e.bestLine)}.` : ''}` : '';
   const prompt = `The student plays ${colorName} and is training: ${S.sel.join(', ')}.
 Moves so far: ${historyText(played) || '(start of game)'}
-Position (FEN, student to move): ${info.before}
 Current opening: ${lastNamed ? lastNamed[1] : 'start position'}
-Student played: ${info.move.san}. ${context}
-${info.total ? yourStats : ''}
+The student played ${info.move.san}. ${context}
 Main moves here: ${candTxt}
-${eng}
-What ${info.move.san} did: ${moveFacts(info.before, info.move.san)}
-What ${info.cands[0].san} would do: ${moveFacts(info.before, info.cands[0].san)}
+${lines}
 Pieces before the move:
 ${pieceLists(new Chess(info.before))}
 
-In ${LANG[S.lang]}, explain in 3 to 5 short sentences the idea behind the main move and what is wrong with or different about ${info.move.san}. Only state concrete variations that appear above; do not invent moves. ${GROUND} Plain text, no markdown, no lists.`;
-  info.prompt = prompt; info.thread = []; info.fens = [info.before, info.engine ? info.engine.afterFen : fenAfter(info.before, info.move.san)];
+${factsBlock(info)}
+In ${LANG[S.lang]}, write 2 or 3 short sentences that explain, in plain words, the idea of ${bestSan || 'the main move'} and what goes wrong with ${info.move.san}. ${SUMMARY_RULES} Plain text, no markdown, no lists.`;
+  info.prompt = prompt; info.thread = [];
   info.coachState = 'thinking'; renderCoach(info);
   cancelCoach(); const ctl = new AbortController(); coachCtl = ctl;
   try{
-    const res = await Coach.run(prompt, {signal: ctl.signal, onText: ({text}) => { if(wrongInfo === info && text){ info.coach = text; info.coachState = 'streaming'; renderCoach(info); } }});
+    const res = await Coach.run(prompt, {signal: ctl.signal, onText: () => { if(wrongInfo === info && info.coachState !== 'streaming'){ info.coachState = 'streaming'; renderCoach(info); } }});
     if(wrongInfo !== info) return;
-    info.coach = res.text; info.coachState = 'done'; renderCoach(info);
-  }catch(e){
-    if(e.name === 'AbortError' || wrongInfo !== info) return;
-    info.coachState = 'error'; info.coachError = e.message; renderCoach(info);
+    const v = verifyCoach(res.text, info); info.coach = v.text; info.removed = v.removed;
+    info.coachState = 'done'; renderCoach(info);
+  }catch(err){
+    if(err.name === 'AbortError' || wrongInfo !== info) return;
+    info.coachState = 'error'; info.coachError = err.message; renderCoach(info);
   }
+}
+/* ---- checking what the model wrote, sentence by sentence ---- */
+// a sentence is removed if it names a move that is not in the facts, or a piece on a square where there is none
+const SAN_RE = /(?:^|[^A-Za-z0-9])((?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x[a-h][1-8])(?:=?[QRBN])?)(?=[+#!?]|[^A-Za-z0-9]|$)/g;
+const PIECE_RE = /\b(king|queen|rook|bishop|knight|pawn)\s+on\s+([a-h][1-8])\b/gi;
+const PT = {king: 'k', queen: 'q', rook: 'r', bishop: 'b', knight: 'n', pawn: 'p'};
+function sansIn(text){ const out = new Set(); for(const m of (text || '').matchAll(SAN_RE)) out.add(m[1]); return out; }
+function verifyCoach(text, info, extra){
+  const allowed = sansIn([info.prompt, ...(info.thread || []).map(t => t.qFull), extra].join('\n'));
+  const boards = (info.checkFens || info.fens || []).map(f => { try{ return new Chess(f); }catch(e){ return null; } }).filter(Boolean);
+  const pieceThere = (t, sq) => !boards.length || boards.some(b => { const p = b.get(sq); return p && p.type === t; });
+  let removed = 0;
+  const kept = (text || '').split(/(?<=[.!?])\s+/).filter(sent => {
+    for(const m of sent.matchAll(SAN_RE)) if(!allowed.has(m[1])){ removed++; return false; }
+    for(const m of sent.matchAll(PIECE_RE)) if(!pieceThere(PT[m[1].toLowerCase()], m[2])){ removed++; return false; }
+    return true;
+  });
+  return {text: kept.join(' ').trim(), removed};
 }
 /* ---- facts about a position, so a small model cannot invent pieces or pawns ---- */
 const PNAME = {k: 'King', q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight', p: 'Pawn'};
@@ -201,39 +246,43 @@ function moveFacts(fenBefore, san){
 }
 const GROUND = 'Only mention pieces and pawns that appear in the lists above, on the squares given. Never suggest moving a pawn or piece that is not listed. If you are not sure about a concrete claim, stay general.';
 async function explainLast(){
-  if(!Coach.available()) return;
   const hist = game.history(); if(!hist.length) return;
   const mover = hist.length % 2 === 1 ? 'White' : 'Black';
-  const info = {coach: '', coachState: 'thinking'}; setExplainInfo(info); renderStatus();
+  const info = {coach: '', coachState: Coach.available() ? 'thinking' : 'unavail'}; setExplainInfo(info); renderStatus();
   const how = phase === 'engine' ? 'an engine-approved move played after theory ended' : phase === 'stats' ? `a popular move among ${Explorer.label()}` : 'a standard theory move';
   const last = hist[hist.length - 1], g0 = new Chess(); hist.slice(0, -1).forEach(m => g0.move(m));
   const before = g0.fen(); g0.move(last); const after = g0.fen();
-  let eng = '';
+  let eng = '', pvAfter = [], wEv = null;
   await waitEngine();
   if(Engine.available()){
     const r = await Engine.analyse(after, 12);
     if(explainInfo !== info) return;
     if(r){
-      const wEv = after.split(' ')[1] === 'w' ? r.cp : -r.cp;
-      const txt = Math.abs(wEv) >= 9000 ? (wEv > 0 ? 'White has a forced mate' : 'Black has a forced mate') : `${wEv >= 0 ? '+' : '−'}${(Math.abs(wEv) / 100).toFixed(1)} (positive is better for White)`;
-      eng = `Stockfish evaluation after ${last}: ${txt}. Expected continuation: ${fmtLine(after, pvToSan(after, r.pv, 4))}.`;
+      wEv = after.split(' ')[1] === 'w' ? r.cp : -r.cp; pvAfter = pvToSan(after, r.pv, 6);
+      eng = `Stockfish after ${last}: ${evalWords(wEv)}. Expected continuation: ${fmtLine(after, pvAfter)}.`;
     }
   }
+  info.analysis = analyseMistake({before, played: last, playedLine: pvAfter});
+  if(wEv != null) info.analysis.unshift(`After ${last}, Stockfish sees ${evalWords(wEv)}.`);
+  info.checkFens = lineFens(before, [last, ...pvAfter]); info.fens = [after, before];
+  info.wiki = hist.length <= 30 ? 'loading' : null; renderInsight(info);
+  if(info.wiki === 'loading'){ info.wiki = await wikiQuick(hist); if(explainInfo !== info) return; renderInsight(info); }
+  if(!Coach.available()) return;
   const prompt = `The student plays ${S.color === 'w' ? 'White' : 'Black'}.
 Moves: ${historyText(hist)}
 Current opening: ${lastNamed ? lastNamed[1] : 'start position'}
 The last move was ${last} by ${mover}, ${how}.
-What the move did: ${moveFacts(before, last)}
 Pieces after the move:
 ${pieceLists(g0)}
 ${eng}
 
-In ${LANG[S.lang]}, explain in 3 to 4 short sentences the idea of ${last}: what it aims for and the plans that usually follow. ${GROUND} Plain text, no markdown.`;
-  info.prompt = prompt; info.thread = []; info.fens = [after, before];
+${factsBlock(info)}
+In ${LANG[S.lang]}, write 2 or 3 short sentences about the idea of ${last} and the plans that usually follow. ${SUMMARY_RULES} Plain text, no markdown.`;
+  info.prompt = prompt; info.thread = [];
   cancelCoach(); const ctl = new AbortController(); coachCtl = ctl;
   try{
-    const res = await Coach.run(prompt, {signal: ctl.signal, onText: ({text}) => { if(explainInfo === info && text){ info.coach = text; info.coachState = 'streaming'; renderCoach(info); } }});
-    if(explainInfo === info){ info.coach = res.text; info.coachState = 'done'; renderCoach(info); }
+    const res = await Coach.run(prompt, {signal: ctl.signal, onText: () => { if(explainInfo === info && info.coachState !== 'streaming'){ info.coachState = 'streaming'; renderCoach(info); } }});
+    if(explainInfo === info){ const v = verifyCoach(res.text, info); info.coach = v.text; info.removed = v.removed; info.coachState = 'done'; renderCoach(info); }
   }catch(e){ if(e.name !== 'AbortError' && explainInfo === info){ info.coachState = 'error'; info.coachError = e.message; renderCoach(info); } }
 }
 /* ---- follow-up questions ---- */
@@ -270,14 +319,15 @@ async function askFollowUp(info, el, q){
   try{
     t.qFull = q + await factsForQuestion(info, q);
     const ctl = new AbortController(); info.ctl = ctl;
-    const r = await Coach.run(coachMessages(info, t), {signal: ctl.signal, onText: ({text}) => { if(text){ t.a = text; t.state = 'streaming'; renderCoach(info, el); } }});
-    t.a = r.text; t.state = 'done';
+    const r = await Coach.run(coachMessages(info, t), {signal: ctl.signal});
+    const v = verifyCoach(r.text, info, t.qFull);
+    t.a = v.text || 'I can only answer from the facts above, and could not answer this one reliably.'; t.removed = v.removed; t.state = 'done';
   }catch(e){ if(e.name !== 'AbortError'){ t.state = 'error'; t.a = e.message || 'The coach could not answer.'; } }
   info.asking = false; renderCoach(info, el);
 }
 function threadHtml(info){
   if(!info.thread || info.coachState !== 'done') return '';
-  const items = info.thread.map(t => `<div class="fu-q">${esc(t.q)}</div><div class="fu-a ${t.state === 'error' ? 'err' : ''}">${t.state === 'thinking' ? 'Thinking…' : esc(t.a)}</div>`).join('');
+  const items = info.thread.map(t => `<div class="fu-q">${esc(t.q)}</div><div class="fu-a ${t.state === 'error' ? 'err' : ''}">${t.state === 'thinking' ? 'Thinking…' : esc(t.a)}${t.removed ? `<span class="ins-muted"> (${t.removed} sentence${t.removed > 1 ? 's' : ''} removed by the check)</span>` : ''}</div>`).join('');
   return items + `<div class="fu-row"><input class="fu-in" type="text" placeholder="Ask a follow-up, e.g. Why not Qxe4?" value="${esc(info.draft || '')}" ${info.asking ? 'disabled' : ''}><button class="btn fu-go" ${info.asking ? 'disabled' : ''}>Ask</button></div>`;
 }
 function renderCoach(info, target){
@@ -291,8 +341,11 @@ function renderCoach(info, target){
     el.className = 'coach thinking'; el.innerHTML = '<span class="lbl">Coach</span>' + (loading ? `Loading ${esc(webName(S.webModel))}…${pr}` : 'Thinking…');
   }
   else if(info.coachState === 'error'){ el.className = 'coach thinking'; el.innerHTML = '<span class="lbl">Coach</span>' + esc(info.coachError || 'The explanation could not be loaded.'); }
+  else if(info.coachState === 'streaming'){ el.className = 'coach thinking'; el.innerHTML = '<span class="lbl">AI summary</span>Writing, then checking against the position…'; }
   else {
-    el.className = 'coach'; el.innerHTML = '<span class="lbl">Coach</span><div class="fu-main">' + esc(info.coach) + '</div>' + threadHtml(info);
+    const note = info.removed ? `<div class="ins-muted" style="font-size:12.5px;margin-top:4px">${info.removed} sentence${info.removed > 1 ? 's were' : ' was'} removed: ${info.removed > 1 ? 'they' : 'it'} named moves or pieces that are not in the position.</div>` : '';
+    const main = info.coach ? esc(info.coach) : '<span class="ins-muted">The AI summary did not pass the check against the position, so it is hidden. The facts above are reliable.</span>';
+    el.className = 'coach'; el.innerHTML = '<span class="lbl">AI summary, checked against the position</span><div class="fu-main">' + main + '</div>' + note + threadHtml(info);
     const inp = el.querySelector('.fu-in');
     if(inp){
       inp.oninput = () => { info.draft = inp.value; };
@@ -303,4 +356,4 @@ function renderCoach(info, target){
   }
 }
 
-export { Coach, GROUND, LANG, PNAME, Web, cancelCoach, coachExplain, explainLast, historyText, moveFacts, newCoachCtl, pieceLists, renderCoach, renderWebProgress };
+export { Coach, GROUND, LANG, PNAME, SUMMARY_RULES, Web, cancelCoach, coachExplain, explainLast, factsBlock, historyText, moveFacts, newCoachCtl, pieceLists, renderCoach, renderInsight, renderWebProgress, verifyCoach, wikiQuick };

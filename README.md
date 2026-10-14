@@ -13,9 +13,10 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Move statistics**: with a Lichess connection, the opponent plays the moves
   that real players choose (Lichess players by rating, or masters).
 - **Stockfish**: checks your moves once theory ends, and analyses your games.
-- **Coach**: explains mistakes in plain language, using a model that runs in the
-  browser (WebGPU) or any OpenAI-compatible server such as Ollama. Facts about the
-  position and Stockfish lines are given to the model so it does not invent moves.
+- **Explanations**: for each mistake, facts computed from the position and Stockfish's
+  lines (material, the opponent's reply, loose pieces, pawn structure), the human-written
+  explanation of the opening from Wikibooks, and an optional AI summary that is checked
+  sentence by sentence against the position (browser model or an OpenAI-compatible server).
 - **Spaced repetition**: every position you must find is a card; missed positions
   come back sooner.
 - **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, your games).
@@ -50,7 +51,9 @@ js/setup.js        Openings page
 js/settings.js     Settings page: Lichess sign-in, statistics, coach, backup
 js/sync.js         merging progress, GitHub gist sync
 js/explorer.js     Lichess Opening Explorer client
-js/coach.js        coach: in-browser model or server, prompts, follow-up questions
+js/analysis.js     plain-language facts about a move (no AI)
+js/wikibooks.js    opening explanations from Wikibooks
+js/coach.js        coach: in-browser model or server, prompts, checks, follow-up questions
 js/trainer.js      training board: game state, judging moves, drawing, navigation
 js/engine.js       Stockfish in a background worker
 js/squares.js      Squares page
@@ -76,4 +79,5 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
 - Famous and great players' games (`data/games.json`): game scores from the pgnmentor.com
   collections, as packaged in [Dragjon/chessdatabase](https://github.com/Dragjon/chessdatabase) (MIT);
   Deep Blue vs Kasparov 1997 from the python-chess test data.
+- Opening explanations: Wikibooks, Chess Opening Theory (CC BY-SA), fetched live and credited with a link.
 - Move statistics: Lichess Opening Explorer. In-browser models: WebLLM (MLC).

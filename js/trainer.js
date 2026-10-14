@@ -4,7 +4,7 @@ import { LINES, PIECES, POS } from './data.js';
 import { S, bookMoves, candidates, fenAfter, nameAfter, selFamilies, shortestLine } from './book.js';
 import { cards, dueCards, grade, logMove, progressCounts, saveCards, srsMult } from './srs.js';
 import { Explorer, minGames, scoreFor } from './explorer.js';
-import { Coach, Web, cancelCoach, coachExplain, explainLast, renderCoach } from './coach.js';
+import { Coach, Web, cancelCoach, coachExplain, explainLast, renderCoach, renderInsight } from './coach.js';
 import { Engine, fmtEval, fmtLine, pvToSan, renderEngineNote, uciMove, waitEngine } from './engine.js';
 import { Daily, nextWeak, openToday, renderDayBar } from './daily.js';
 
@@ -233,7 +233,7 @@ async function judgeEngine(before, m){
   if(loss < 60){ accept(before, m, {kind: 'engine', san: m.san, ev: you}); return; }
   const cands = rb.lines.filter(l => l.cp >= best - 30).map(l => { const gg = new Chess(before); return {san: uciMove(gg, l.pv[0]).san, ev: l.cp}; });
   const info = {phase: 'engine', before, move: m, cands, engineState: 'done', coach: '', coachState: 'idle',
-    engine: {you, book: best, loss, refutation: pvToSan(g.fen(), ra.pv, 4), afterFen: g.fen()}, verdict: verdictFor(loss)};
+    engine: {you, book: best, loss, refutation: pvToSan(g.fen(), ra.pv, 6), bestLine: pvToSan(before, rb.lines[0].pv, 7).slice(1), afterFen: g.fen()}, verdict: verdictFor(loss)};
   reject(info); coachExplain(info);
 }
 const verdictFor = loss => loss >= 250 ? 'Blunder' : loss >= 110 ? 'Mistake' : loss >= 45 ? 'Inaccuracy' : 'Playable, but not the main move';
@@ -243,7 +243,7 @@ async function engineCompare(before, m, refSan){
   const ra = await Engine.analyse(g.fen(), 13), rb = await Engine.analyse(bg.fen(), 13);
   if(!ra || !rb) return null;
   const you = -ra.cp, book = -rb.cp;
-  return {you, book, loss: book - you, refutation: pvToSan(g.fen(), ra.pv, 4), afterFen: g.fen()};
+  return {you, book, loss: book - you, refutation: pvToSan(g.fen(), ra.pv, 6), bestLine: pvToSan(bg.fen(), rb.pv, 6), afterFen: g.fen()};
 }
 async function enrichMistake(info){
   const sid = sessionId;
@@ -404,7 +404,7 @@ function renderStatus(){
     body += `<ul class="book-list">${w.cands.slice(0,4).map(candRow).join('')}</ul>`;
     if(e) body += `<div class="engine"><span class="lbl">Stockfish:</span> ${esc(w.cands[0].san)} ${fmtEval(e.book)}, your move ${fmtEval(e.you)}. ${e.refutation.length ? 'Likely continuation: ' + esc(fmtLine(e.afterFen, e.refutation)) : ''}</div>`;
     else if(w.engineState === 'running') body += `<div class="engine"><span class="lbl">Stockfish is checking the move…</span></div>`;
-    body += `<div id="coach" class="coach"></div>`;
+    body += `<div id="insight" class="insight"></div><div id="coach" class="coach"></div>`;
     acts = [['Try again', retry, 'primary'], [w.phase === 'engine' ? 'Show the best move' : 'Show the main move', showBest]];
     if(w.phase === 'stats' && w.rareButSound) acts.push(['Continue with my move', keepMine]);
   } else if(status === 'done'){
@@ -438,8 +438,8 @@ function renderStatus(){
   }
   st.className = cls;
   st.innerHTML = `${tag}<div class="st-title">${title}</div>${body ? `<div class="st-body">${body}</div>` : ''}`;
-  if(status === 'wrong' && wrongInfo) renderCoach(wrongInfo);
-  else if(explainInfo){ st.insertAdjacentHTML('beforeend', '<div id="coach" class="coach"></div>'); renderCoach(explainInfo); }
+  if(status === 'wrong' && wrongInfo){ renderInsight(wrongInfo); renderCoach(wrongInfo); }
+  else if(explainInfo){ st.insertAdjacentHTML('beforeend', '<div id="insight" class="insight"></div><div id="coach" class="coach"></div>'); renderInsight(explainInfo); renderCoach(explainInfo); }
   ac.innerHTML = '';
   acts.forEach(([label, fn, kind, dis]) => { const b = document.createElement('button'); b.className = 'btn' + (kind ? ' ' + kind : ''); b.textContent = label; b.onclick = fn; if(dis) b.disabled = true; ac.appendChild(b); });
   const pc = progressCounts();

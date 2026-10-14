@@ -3,7 +3,8 @@ import { $, esc, posKey, sleep, store } from './util.js';
 import { LINES, PIECES, POS } from './data.js';
 import { S, bookMoves, selFamilies } from './book.js';
 import { cards, saveCards } from './srs.js';
-import { Coach, GROUND, LANG, cancelCoach, historyText, moveFacts, newCoachCtl, pieceLists, renderCoach } from './coach.js';
+import { analyseMistake, lineFens } from './analysis.js';
+import { Coach, LANG, SUMMARY_RULES, cancelCoach, factsBlock, historyText, moveFacts, newCoachCtl, pieceLists, renderCoach, renderInsight, verifyCoach, wikiQuick } from './coach.js';
 import { BRUSH, enterTraining, files, startReviewKey } from './trainer.js';
 import { Engine, fmtLine, pvToSan, uciMove, waitEngine } from './engine.js';
 import { openToday } from './daily.js';
@@ -155,13 +156,55 @@ function rRenderNote(){
     if(mine) acts.push(['Practise this position', () => rPractise(j)]);
   } else { title = num; if(j === R.bookEnd + 1 && R.bookEnd) body = mine ? 'You left the opening book here.' : 'Your opponent left the opening book here.'; }
   body += ` <span class="r-eval">Evaluation: ${evalText(R.evals[j])}</span>`;
-  el.className = cls; el.innerHTML = `<div class="st-title">${title}</div><div class="st-body">${body}</div><div id="rCoach" class="coach" style="display:none"></div>`;
+  el.className = cls; el.innerHTML = `<div class="st-title">${title}</div><div class="st-body">${body}</div><div id="rInsight" class="insight"></div><div id="rCoach" class="coach" style="display:none"></div>`;
+  if(jd) rInsight(j);
   if(R.info && R.info.ply === j) renderCoach(R.info, $('rCoach'));
   $('rActions').innerHTML = '';
   acts.forEach(([l, fn]) => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = l; b.onclick = fn; $('rActions').appendChild(b); });
 }
-function rRenderAll(){ rRenderBoard(); rRenderMoves(); rRenderGraph(); rRenderSummary(); rRenderNote(); }
-function rGo(ply){ rStopAuto(); R.var = null; R.sel = null; R.ply = Math.max(0, Math.min(R.moves.length, ply)); rRenderBoard(); rRenderMoves(); rRenderGraph(); rRenderNote(); }
+function rRenderAll(){ rRenderBoard(); rRenderMoves(); rRenderGraph(); rRenderSummary(); rRenderNote(); rRenderLines(); }
+function rGo(ply){ rStopAuto(); R.var = null; R.sel = null; R.ply = Math.max(0, Math.min(R.moves.length, ply)); rRenderBoard(); rRenderMoves(); rRenderGraph(); rRenderNote(); rRenderLines(); }
+/* ---- engine lines: Stockfish's three best moves in the position on the board ---- */
+let rLinesOn = store.get('rLines', true), rLinesTok = 0;
+const rLinesCache = new Map();
+// evaluation of a line, from White's point of view, as on Lichess and chess.com: +1.3, −0.4, #3, #-2
+function lineEval(cp, fen){
+  const w = fen.split(' ')[1] === 'w' ? cp : -cp;
+  if(Math.abs(w) >= 9000){ const n = 10000 - Math.abs(w); return (w > 0 ? '#' : '#-') + n; }
+  return (w >= 0 ? '+' : '−') + (Math.abs(w) / 100).toFixed(1);
+}
+async function rRenderLines(){
+  const el = $('rLines'); if(!el || !R.fens.length) return;
+  const tok = ++rLinesTok;
+  const head = `<div class="r-lhead"><span>Engine lines</span><button class="btn quiet r-ltoggle">${rLinesOn ? 'Hide' : 'Show'}</button></div>`;
+  const bindToggle = () => { el.querySelector('.r-ltoggle').onclick = () => { rLinesOn = !rLinesOn; store.set('rLines', rLinesOn); rRenderLines(); }; };
+  if(!rLinesOn){ el.innerHTML = head; bindToggle(); return; }
+  const fen = R.var ? rVarState().fens[R.var.i] : R.fens[R.ply], g = new Chess(fen);
+  if(g.game_over()){ el.innerHTML = head + `<div class="r-lnote">${g.in_checkmate() ? 'Checkmate.' : 'The game is over.'}</div>`; bindToggle(); return; }
+  el.innerHTML = head + '<div class="r-lnote">Stockfish is calculating…</div>'; bindToggle();
+  let p = rLinesCache.get(fen);
+  if(!p){ p = (async () => { await waitEngine(); return Engine.available() ? Engine.analyse(fen, 14, 3) : null; })(); rLinesCache.set(fen, p); }
+  const r = await p;
+  if(tok !== rLinesTok) return;            // the board moved on meanwhile
+  if(!r){ el.innerHTML = head + '<div class="r-lnote">Stockfish is not available.</div>'; bindToggle(); return; }
+  // which line is the move actually played next (in the game, or in your line)
+  const next = R.var ? R.var.sans[R.var.i] : (R.moves[R.ply] ? R.moves[R.ply].san : null);
+  const RANK = ['Best', '2nd', '3rd'];
+  const rows = r.lines.slice(0, 3).map((l, k) => ({sans: pvToSan(fen, l.pv, 8), ev: lineEval(l.cp, fen), k}));
+  const nextRank = next ? rows.findIndex(x => x.sans[0] === next) : -1;
+  el.innerHTML = head + rows.map(x => `<button class="r-lrow" data-k="${x.k}" title="Play this line on the board">
+      <span class="r-lev ${x.ev.startsWith('−') || x.ev.startsWith('#-') ? 'neg' : ''}">${esc(x.ev)}</span>
+      <span class="r-lrank">${RANK[x.k]}</span>
+      <span class="r-lmoves">${esc(fmtLine(fen, x.sans))}</span>${x.k === nextRank ? `<span class="r-lplayed">${R.var ? 'your line' : 'played'}</span>` : ''}</button>`).join('') +
+    (next && nextRank < 0 ? `<div class="r-lnote">The move ${R.var ? 'in your line' : 'played'} here, ${esc(next)}, is not among Stockfish's top three.</div>` : '');
+  bindToggle();
+  el.querySelectorAll('.r-lrow').forEach(b => b.onclick = () => {
+    const x = rows[+b.dataset.k], label = `${['Best', 'Second best', 'Third best'][x.k]} line from move ${+fen.split(' ')[5]}`;
+    if(R.var){ rStopAuto(); R.var.sans = R.var.sans.slice(0, R.var.i).concat(x.sans); R.var.label = label; R.sel = null; rVarRender(); }
+    else rStartVar(R.ply, x.sans, label);
+  });
+}
+
 /* ---- playing a line on the review board: engine lines, or your own moves ---- */
 // R.var: {startPly, base, sans, i, label}; the board shows the position after the first i moves of the line
 function rStopAuto(){ if(R.auto){ clearInterval(R.auto); R.auto = null; } }
@@ -179,7 +222,7 @@ function rVarState(){
 }
 function rVarStep(d){ rStopAuto(); R.var.i = Math.max(0, Math.min(R.var.sans.length, R.var.i + d)); R.sel = null; rVarRender(); }
 function rExitVar(){ rStopAuto(); R.var = null; R.sel = null; rRenderBoard(); rRenderMoves(); rRenderGraph(); rRenderNote(); }
-function rVarRender(){ rRenderBoard(); rRenderNote(); }
+function rVarRender(){ rRenderBoard(); rRenderNote(); if(!R.auto) rRenderLines(); }
 // Stockfish's view of a position in the line (cached)
 function rEvalOf(fen){
   R.vEval = R.vEval || new Map();
@@ -249,9 +292,25 @@ function rVarNote(){
   }
 }
 
+// facts for a judged move of the game (computed once), and the Wikibooks page while still in the opening
+function rInsightInfo(j){
+  R.ins = R.ins || {};
+  if(R.ins[j]) return R.ins[j];
+  const before = R.fens[j - 1], m = R.moves[j - 1], b = R.best[j - 1];
+  let bestSan = ''; if(b){ const bm = uciMove(new Chess(before), b); if(bm) bestSan = bm.san; }
+  const bestLine = (R.pvs[j - 1] || []).slice(1), playedLine = R.pvs[j] || [];
+  const x = {analysis: analyseMistake({before, played: m.san, playedLine, best: bestSan || null, bestLine, evPlayed: R.evals[j], evBest: R.evals[j - 1]}),
+    checkFens: [...lineFens(before, [m.san, ...playedLine]), ...(bestSan ? lineFens(before, [bestSan, ...bestLine]) : [])], wiki: j <= 30 ? 'loading' : null};
+  R.ins[j] = x;
+  if(x.wiki === 'loading') wikiQuick(R.sans.slice(0, j - 1)).then(w => { x.wiki = w; if(R.ply === j && !R.var) renderInsight(x, $('rInsight')); });
+  return x;
+}
+function rInsight(j){ renderInsight(rInsightInfo(j), $('rInsight')); }
 async function rExplain(j, bestSan){
   const before = R.fens[j - 1], m = R.moves[j - 1], mover = j % 2 === 1 ? 'White' : 'Black', jd = R.judg[j];
-  const info = {coach: '', coachState: 'thinking', thread: [], fens: [before, R.fens[j]], ply: j}; R.info = info;
+  const ins = rInsightInfo(j);
+  if(ins.wiki === 'loading') ins.wiki = await wikiQuick(R.sans.slice(0, j - 1));
+  const info = {coach: '', coachState: 'thinking', thread: [], fens: [before, R.fens[j]], checkFens: ins.checkFens, analysis: ins.analysis, wiki: ins.wiki, ply: j}; R.info = info;
   renderCoach(info, $('rCoach'));
   const prompt = `This is a real game. ${mover} ${mover === (R.my === 'w' ? 'White' : 'Black') ? '(the student)' : "(the student's opponent)"} played ${Math.ceil(j / 2)}${mover === 'White' ? '.' : '...'} ${m.san}, judged a ${jd.toLowerCase()} by Stockfish.
 Moves: ${historyText(R.sans.slice(0, j))}
@@ -264,12 +323,13 @@ ${bestSan ? `What ${bestSan} would do: ${moveFacts(before, bestSan)}` : ''}
 Pieces before the move:
 ${pieceLists(new Chess(before))}
 
-In ${LANG[S.lang]}, explain in 3 to 5 short sentences why ${m.san} was a ${jd.toLowerCase()} and what ${bestSan || 'the better move'} achieves instead. Only state concrete variations that appear above. ${GROUND} Plain text, no markdown, no lists.`;
+${factsBlock(info)}
+In ${LANG[S.lang]}, write 2 or 3 short sentences that explain in plain words why ${m.san} was a ${jd.toLowerCase()} and what ${bestSan || 'the better move'} achieves instead. ${SUMMARY_RULES} Plain text, no markdown, no lists.`;
   info.prompt = prompt;
   const ctl = newCoachCtl();
   try{
-    const r = await Coach.run(prompt, {signal: ctl.signal, onText: ({text}) => { if(R.info === info && text){ info.coach = text; info.coachState = 'streaming'; if(R.ply === j) renderCoach(info, $('rCoach')); } }});
-    info.coach = r.text; info.coachState = 'done';
+    const r = await Coach.run(prompt, {signal: ctl.signal, onText: () => { if(R.info === info && info.coachState !== 'streaming'){ info.coachState = 'streaming'; if(R.ply === j) renderCoach(info, $('rCoach')); } }});
+    const v = verifyCoach(r.text, info); info.coach = v.text; info.removed = v.removed; info.coachState = 'done';
   }catch(e){ if(e.name === 'AbortError') return; info.coachState = 'error'; info.coachError = e.message; }
   if(R.ply === j) renderCoach(info, $('rCoach'));
 }

@@ -12,6 +12,8 @@ import { R } from './review.js';
 import './data.js';
 import './srs.js';
 import './explorer.js';
+import './analysis.js';
+import './wikibooks.js';
 import './engine.js';
 import './progress.js';
 import { init as init_util } from './util.js';
