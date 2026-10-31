@@ -24,7 +24,8 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Squares**: coordinate exercises on real positions, with speed rounds, and
   playing famous games or great players' games from their written moves.
 - **Progress**: time per day and activity, calendar, streaks, accuracy per opening.
-- **Sync**: progress saved in a secret GitHub gist, shared across browsers.
+- **Accounts**: sign in with an email and a password (Firebase) to keep your progress on all
+  your devices. Without an account, progress stays in the browser.
 
 ## Run it locally
 
@@ -49,7 +50,8 @@ js/book.js         opening families, selection and settings, book moves
 js/srs.js          spaced repetition cards and answer log
 js/setup.js        Openings page
 js/settings.js     Settings page: Lichess sign-in, statistics, backup
-js/sync.js         merging progress, GitHub gist sync
+js/sync.js         merging progress, accounts and sync (Firebase Auth + Firestore)
+js/firebase-config.js  the Firebase project's web config (null = no accounts)
 js/explorer.js     Lichess Opening Explorer client
 js/analysis.js     plain-language facts about a move (no AI)
 js/wikibooks.js    opening explanations from Wikibooks
@@ -81,3 +83,25 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
   Deep Blue vs Kasparov 1997 from the python-chess test data.
 - Opening explanations: Wikibooks, Chess Opening Theory (CC BY-SA), fetched live and credited with a link.
 - Move statistics: Lichess Opening Explorer.
+
+## Hosting and accounts (Firebase)
+
+The app is static files; Firebase hosts them and provides sign-in and storage (free Spark plan).
+
+1. In the [Firebase console](https://console.firebase.google.com), create a project.
+2. **Authentication** > Get started > **Email/Password** > enable.
+3. **Firestore Database** > Create database (production mode).
+4. **Project settings** > Your apps > add a **Web app**, copy its config into `js/firebase-config.js`.
+5. Deploy the site and the security rules:
+
+   ```
+   npm install -g firebase-tools
+   firebase login
+   firebase use --add          # pick the project
+   firebase deploy             # hosting + Firestore rules
+   ```
+
+Each person's progress is stored under `users/{their id}` and `firestore.rules` lets only them
+read or write it. `firebase.json` tells browsers to check for new files on every visit, so a
+new version is never mixed with old cached files.
+
