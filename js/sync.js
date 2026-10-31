@@ -1,4 +1,4 @@
-// Merging progress from a file or another device, and GitHub Gist sync.
+// Merging progress from a file or another device, and sync through a Firebase account.
 import { $, esc, store } from './util.js';
 import { cards, moveLog } from './srs.js';
 import { renderSel } from './setup.js';
@@ -6,6 +6,7 @@ import { game, renderStatus } from './trainer.js';
 import { coordLog, coordRounds } from './squares.js';
 import { Daily } from './daily.js';
 import { timeLog } from './progress.js';
+import { firebaseConfig } from './firebase-config.js';
 
 /* ---- merging progress from another device or file: newest card wins, histories are combined ---- */
 function mergeProgress(data){
@@ -34,65 +35,105 @@ function mergeProgress(data){
   return changed;
 }
 
-/* ================= GitHub Gist sync ================= */
-// Progress lives in one secret gist in your account; every browser with your token reads and writes it.
-const GIST_FILE = 'opening-trainer-progress.json';
+/* ================= accounts and sync (Firebase) ================= */
+// Each person signs in with an email and a password. Their progress is stored in Firestore under their own user id,
+// and every browser where they sign in shares it. The Firebase library is loaded only when accounts are set up.
+const SDK = 'https://www.gstatic.com/firebasejs/12.19.0/';
+const CHUNK = 700000;   // a Firestore document holds at most 1 MiB, so the progress is split into pieces
+// progress that belongs to the person signed in: cleared on sign-out so the next person starts clean
+const PERSONAL = ['cards', 'log', 'coordLog', 'coordRounds', 'time', 'dailyDays', 'daily', 'session', 'token', 'user', 'ratings', 'rLines', 'pkce', 'fbHash', 'fbLast'];
+let A = null, F = null, auth = null, db = null;
+
+function hash(str){   // cyrb53: tells whether the progress changed without downloading it
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(let i = 0; i < str.length; i++){ const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const AUTH_ERRORS = {
+  'auth/invalid-credential': 'Wrong email or password.', 'auth/wrong-password': 'Wrong email or password.', 'auth/user-not-found': 'Wrong email or password.',
+  'auth/invalid-email': 'This email address is not valid.', 'auth/missing-password': 'Enter your password.',
+  'auth/email-already-in-use': 'An account already exists with this email. Sign in instead.',
+  'auth/weak-password': 'Choose a password of at least 6 characters.',
+  'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
+  'auth/network-request-failed': 'No connection. Check your internet and try again.',
+  'auth/operation-not-allowed': 'Email sign-in is not turned on in the Firebase project.',
+  'permission-denied': 'The database refused access. Check the Firestore security rules.',
+  'unavailable': 'No connection. Your progress is kept here and will sync later.'
+};
+const errText = e => AUTH_ERRORS[e && e.code] || (e && e.message) || 'Something went wrong.';
+
 const Sync = window.Sync = {
-  token: store.get('ghToken', ''), gistId: store.get('ghGist', ''), login: store.get('ghLogin', ''),
-  state: 'idle', last: store.get('ghLast', 0), error: '', timer: null, busy: null, dirty: false,
-  connected(){ return !!(this.token && this.gistId); },
-  async api(path, opts = {}){
-    const res = await fetch('https://api.github.com' + path, Object.assign({}, opts, {headers: Object.assign({
-      Authorization: 'Bearer ' + this.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}, opts.body ? {'Content-Type': 'application/json'} : {})}));
-    if(res.status === 401) throw new Error('GitHub refused the token. Check that it is valid and not expired.');
-    if(res.status === 403 || res.status === 404) throw new Error('The token cannot use gists. Give it read and write access to Gists.');
-    if(!res.ok) throw new Error('GitHub answered with an error (' + res.status + ').');
-    return res.status === 204 ? null : res.json();
-  },
-  payload(){ return JSON.stringify({app: 'opening-trainer', version: 5, updated: Date.now(), cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog}); },
-  async readRemote(){
-    const g = await this.api('/gists/' + this.gistId);
-    const f = g.files && g.files[GIST_FILE];
-    if(!f) return null;
-    let text = f.content;
-    if(f.truncated){ const r = await fetch(f.raw_url); text = await r.text(); }  // large files are not inlined
-    try{ return JSON.parse(text); }catch(e){ return null; }
-  },
-  async connect(token){
-    this.token = token.trim(); this.state = 'working'; this.error = ''; renderSync();
+  user: null, ready: false, state: 'idle', error: '', notice: '', last: store.get('fbLast', 0), remoteHash: store.get('fbHash', ''),
+  timer: null, busy: null, dirty: false,
+  configured(){ return !!(firebaseConfig && firebaseConfig.apiKey && firebaseConfig.projectId); },
+  connected(){ return !!(this.user && db); },
+  async load(){
+    if(!this.configured()) return;
     try{
-      try{ const u = await this.api('/user'); this.login = u.login || ''; }catch(e){ if(/refused/.test(e.message)) throw e; this.login = ''; }
-      // reuse the progress gist if one exists, otherwise create it
-      let found = null;
-      for(let page = 1; page <= 10 && !found; page++){
-        const list = await this.api('/gists?per_page=100&page=' + page);
-        found = list.find(g => g.files && g.files[GIST_FILE]);
-        if(list.length < 100) break;
-      }
-      if(found) this.gistId = found.id;
-      else {
-        const g = await this.api('/gists', {method: 'POST', body: JSON.stringify({description: 'Opening Trainer progress', public: false, files: {[GIST_FILE]: {content: this.payload()}}})});
-        this.gistId = g.id;
-      }
-      store.set('ghToken', this.token); store.set('ghGist', this.gistId); store.set('ghLogin', this.login);
-      await this.syncNow();
-    }catch(e){ this.state = 'error'; this.error = e.message; this.token = ''; this.gistId = ''; renderSync(); }
+      const [app, a, f] = await Promise.all([import(SDK + 'firebase-app.js'), import(SDK + 'firebase-auth.js'), import(SDK + 'firebase-firestore.js')]);
+      A = a; F = f;
+      const fa = app.initializeApp(firebaseConfig);
+      auth = A.getAuth(fa); db = F.getFirestore(fa);
+      A.onAuthStateChanged(auth, u => {
+        const was = this.user && this.user.uid;
+        this.user = u ? {uid: u.uid, email: u.email || ''} : null; this.ready = true;
+        renderSync();
+        if(u && u.uid !== was) this.syncNow();   // a sign-in on this device sends what is here and gets what is in the account
+      });
+    }catch(e){ this.ready = true; this.state = 'error'; this.error = 'Could not load the sign-in service. Check your connection and reload the page.'; renderSync(); }
   },
-  disconnect(){ clearTimeout(this.timer); ['ghToken','ghGist','ghLogin','ghLast'].forEach(k => store.set(k, k === 'ghLast' ? 0 : '')); this.token = this.gistId = this.login = ''; this.state = 'idle'; renderSync(); },
+  async run(fn){
+    this.state = 'working'; this.error = ''; this.notice = ''; renderSync();
+    try{ await fn(); this.state = 'idle'; }catch(e){ this.state = 'error'; this.error = errText(e); }
+    renderSync();
+  },
+  signIn(email, pw){ return this.run(() => A.signInWithEmailAndPassword(auth, email, pw)); },
+  signUp(email, pw){ return this.run(() => A.createUserWithEmailAndPassword(auth, email, pw)); },
+  resetPassword(email){
+    if(!email){ this.state = 'error'; this.error = 'Enter your email above, then tap "Forgot password?" again.'; renderSync(); return; }
+    return this.run(async () => { await A.sendPasswordResetEmail(auth, email); this.notice = `If an account exists for ${email}, a reset link is on its way. Check your spam folder too.`; });
+  },
+  async signOut(){
+    await this.syncNow();
+    if(this.state === 'error' && !confirm('Your latest progress could not be saved to your account. If you sign out now, it is lost. Sign out anyway?')) return;
+    clearTimeout(this.timer);
+    await A.signOut(auth);
+    // the progress stays safe in the account; this browser forgets it so the next person starts clean
+    for(const k of PERSONAL) localStorage.removeItem('ot:' + k);
+    location.reload();
+  },
+  payload(){ return JSON.stringify({app: 'opening-trainer', version: 6, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog}); },
   // pull, merge, push. Runs one at a time.
   syncNow(){
     if(!this.connected()) return Promise.resolve();
     if(this.busy){ this.dirty = true; return this.busy; }
     clearTimeout(this.timer); this.dirty = false; this.state = 'working'; renderSync();
+    const uid = this.user.uid;
     this.busy = (async () => {
       try{
-        const remote = await this.readRemote();
-        const gotNew = remote ? mergeProgress(remote) : false;
-        const localNewer = !remote || JSON.stringify(remote.cards) !== JSON.stringify(cards) || (remote.log || []).length !== moveLog.length || (remote.coordLog || []).length !== coordLog.length || (remote.coordRounds || []).length !== coordRounds.length || (remote.dailyDays || []).length !== Daily.days.length || JSON.stringify(remote.time || {}) !== JSON.stringify(timeLog);
-        if(localNewer) await this.api('/gists/' + this.gistId, {method: 'PATCH', body: JSON.stringify({files: {[GIST_FILE]: {content: this.payload()}}})});
-        this.state = 'ok'; this.error = ''; this.last = Date.now(); store.set('ghLast', this.last);
+        const metaRef = F.doc(db, 'users', uid), chunk = i => F.doc(db, 'users', uid, 'chunks', String(i));
+        const meta = await F.getDoc(metaRef), m = meta.exists() ? meta.data() : null;
+        let gotNew = false;
+        if(m && m.hash !== this.remoteHash){   // someone else (another device) saved since our last sync
+          const parts = await Promise.all(Array.from({length: m.n || 0}, (_, i) => F.getDoc(chunk(i))));
+          const text = parts.map(p => p.exists() ? p.data().s : '').join('');
+          try{ gotNew = mergeProgress(JSON.parse(text)); }catch(e){ console.warn('could not read the saved progress', e); }
+        }
+        const text = this.payload(), h = hash(text);
+        if(!m || h !== m.hash){
+          const pieces = []; for(let i = 0; i < text.length; i += CHUNK) pieces.push(text.slice(i, i + CHUNK));
+          const batch = F.writeBatch(db);
+          pieces.forEach((s, i) => batch.set(chunk(i), {s}));
+          for(let i = pieces.length; i < ((m && m.n) || 0); i++) batch.delete(chunk(i));
+          batch.set(metaRef, {n: pieces.length, hash: h, updated: Date.now(), version: 6});
+          await batch.commit();
+        }
+        this.remoteHash = h; store.set('fbHash', h);
+        this.state = 'ok'; this.error = ''; this.last = Date.now(); store.set('fbLast', this.last);
         if(gotNew){ if(!$('setup').hidden) renderSel(); else if(!$('train').hidden && game) renderStatus(); }
-      }catch(e){ this.state = 'error'; this.error = e.message; }
+      }catch(e){ this.state = 'error'; this.error = errText(e); }
       this.busy = null; renderSync();
       if(this.dirty) this.schedule(1500);
     })();
@@ -100,29 +141,44 @@ const Sync = window.Sync = {
   },
   schedule(ms){ if(!this.connected()) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.syncNow(), ms || 4000); }
 };
+
 function renderSync(){
   const el = $('syncBox'); if(!el) return;
-  if(Sync.connected()){
+  if(!Sync.configured()){ el.innerHTML = '<p class="help">Accounts are not set up for this copy of the app, so your progress stays in this browser. Use Export and Import to move it.</p>'; return; }
+  if(!Sync.ready){ el.innerHTML = `<div class="conn ${Sync.state === 'error' ? 'err' : ''}">${Sync.state === 'error' ? esc(Sync.error) : 'Loading…'}</div>`; return; }
+  const working = Sync.state === 'working';
+  if(Sync.user){
     const when = Sync.last ? new Date(Sync.last).toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'}) : '';
-    const line = Sync.state === 'working' ? 'Syncing…' : Sync.state === 'error' ? Sync.error : when ? `Last synced at ${when}.` : '';
-    el.innerHTML = `<div class="who"><span>Synced with GitHub${Sync.login ? ` as <b>${esc(Sync.login)}</b>` : ''}</span><button class="btn quiet" id="syncOut">Disconnect</button></div>
+    const line = working ? 'Syncing…' : Sync.state === 'error' ? Sync.error : when ? `Last synced at ${when}.` : '';
+    el.innerHTML = `<div class="who"><span>Signed in as <b>${esc(Sync.user.email)}</b></span><button class="btn quiet" id="syncOut" ${working ? 'disabled' : ''}>Sign out</button></div>
       <div class="conn ${Sync.state === 'error' ? 'err' : ''}">${esc(line)}</div>
-      <div class="inline" style="margin-top:6px"><button class="btn" id="syncNow">Sync now</button></div>`;
-    $('syncOut').onclick = () => Sync.disconnect();
+      <div class="inline" style="margin-top:6px"><button class="btn" id="syncNow" ${working ? 'disabled' : ''}>Sync now</button></div>`;
+    $('syncOut').onclick = () => Sync.signOut();
     $('syncNow').onclick = () => Sync.syncNow();
-  } else {
-    el.innerHTML = `<input type="password" id="ghToken" placeholder="GitHub token with Gist access" autocomplete="off">
-      <div class="inline"><button class="btn" id="ghConnect" ${Sync.state === 'working' ? 'disabled' : ''}>${Sync.state === 'working' ? 'Connecting…' : 'Sync with GitHub'}</button></div>
-      <div class="conn ${Sync.state === 'error' ? 'err' : ''}">${Sync.state === 'error' ? esc(Sync.error) : ''}</div>
-      <p class="help">Saves your progress in a secret gist in your GitHub account, so every browser and computer where you enter the token shares it. The token stays in this browser. Secret gists are unlisted, not encrypted: anyone with the gist's link could read it.</p>`;
-    $('ghConnect').onclick = () => { const t = $('ghToken').value.trim(); if(t) Sync.connect(t); };
+    return;
   }
+  const keep = id => ($(id) || {}).value || '';
+  const email = keep('acEmail'), pw = keep('acPw');
+  el.innerHTML = `<input type="email" id="acEmail" placeholder="Email" autocomplete="username" ${working ? 'disabled' : ''}>
+    <input type="password" id="acPw" placeholder="Password (6 characters or more)" autocomplete="current-password" ${working ? 'disabled' : ''}>
+    <div class="inline"><button class="btn" id="acIn" ${working ? 'disabled' : ''}>${working ? 'Please wait…' : 'Sign in'}</button><button class="btn quiet" id="acUp" ${working ? 'disabled' : ''}>Create account</button><button class="btn quiet" id="acReset" ${working ? 'disabled' : ''}>Forgot password?</button></div>
+    <div class="conn ${Sync.state === 'error' ? 'err' : ''}">${esc(Sync.state === 'error' ? Sync.error : Sync.notice)}</div>
+    <p class="help">With an account, your progress is saved online and shared by every device where you sign in. Without one, it stays in this browser only.</p>`;
+  $('acEmail').value = email; $('acPw').value = pw;
+  const vals = () => [$('acEmail').value.trim(), $('acPw').value];
+  $('acIn').onclick = () => { const [e, p] = vals(); Sync.signIn(e, p); };
+  $('acUp').onclick = () => { const [e, p] = vals(); Sync.signUp(e, p); };
+  $('acReset').onclick = () => Sync.resetPassword(vals()[0]);
+  $('acPw').onkeydown = ev => { if(ev.key === 'Enter') $('acIn').click(); };
 }
 
 export { Sync, mergeProgress, renderSync };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){
+  // the GitHub gist sync is gone: forget its token
+  ['ghToken', 'ghGist', 'ghLogin', 'ghLast'].forEach(k => localStorage.removeItem('ot:' + k));
+  Sync.load();
   // pick up changes from your other devices when you come back to this tab, and save before leaving
   document.addEventListener('visibilitychange', () => { if(!Sync.connected()) return; if(document.visibilityState === 'visible') Sync.syncNow(); else if(Sync.timer) Sync.syncNow(); });
 }

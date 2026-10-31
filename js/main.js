@@ -69,7 +69,6 @@ function start(){
   // ask the browser to keep this site's data (progress, downloaded models) instead of clearing it when space runs low
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   renderSync();
-  if(Sync.connected()) Sync.syncNow();
   renderSetup();
   syncStats();
   // back to the line in progress if the page was reloaded during training
