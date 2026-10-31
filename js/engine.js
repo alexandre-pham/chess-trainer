@@ -26,8 +26,8 @@ const Engine = {
     }catch(e){ this.fail(); }
   },
   fail(){ clearTimeout(this.timer); this.state = 'failed'; this.mode = ''; try{ this.w && this.w.terminate(); }catch(e){} renderEngineNote(); },
-  analyse(fen, depth, multipv){
-    multipv = multipv || 1;
+  analyse(fen, depth, multipv, movetime){
+    multipv = multipv || 1; movetime = movetime || 4000;
     const run = () => new Promise(resolve => {
       if(this.state !== 'ready') return resolve(null);
       const lines = [];
@@ -43,7 +43,7 @@ const Engine = {
         }
       };
       this.send('setoption name MultiPV value ' + multipv); this.send('position fen ' + fen);
-      this.send('go depth ' + depth + ' movetime ' + 4000);
+      this.send('go depth ' + depth + ' movetime ' + movetime);
     });
     const p = this.queue.then(run); this.queue = p.catch(() => {}); return p;
   }

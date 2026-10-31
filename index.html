@@ -107,17 +107,22 @@
   <!-- TRAINER -->
   <section id="train" class="train" hidden>
     <div>
-      <div class="board-wrap" id="boardWrap">
-        <div class="board" id="board"></div>
-        <svg class="arrows" id="arrows" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+      <div class="board-row">
+        <div class="evalbar" id="evalBar" hidden aria-hidden="true"><i></i><span></span></div>
+        <div class="board-wrap" id="boardWrap">
+          <div class="board" id="board"></div>
+          <svg class="arrows" id="arrows" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+        </div>
       </div>
       <div class="nav">
         <button class="btn" id="navFirst" aria-label="Back to the start">⏮</button>
         <button class="btn" id="navBack" aria-label="Previous move">◀</button>
         <button class="btn" id="navFwd" aria-label="Next move">▶</button>
         <button class="btn" id="navLast" aria-label="Back to the current position">⏭</button>
+        <button class="btn eng-toggle" id="navEngine" aria-pressed="false" title="Evaluation bar and Stockfish's best moves">Engine</button>
         <span class="nav-hint">or the ← → keys. Right-click and drag to draw arrows; Shift or Alt changes the colour.</span>
       </div>
+      <div class="eng-lines" id="engLines" hidden></div>
     </div>
     <div class="panel">
       <div class="daybar" hidden></div>
