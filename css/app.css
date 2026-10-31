@@ -25,6 +25,8 @@
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
+/* no pull-to-refresh: a swipe down between moves must not reload the page */
+html,body{overscroll-behavior-y:none}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -124,9 +126,6 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:none
 .book-list span{color:var(--muted)}
 .engine{font-size:13.5px;margin-top:8px;color:var(--ink)}
 .engine .lbl{color:var(--muted)}
-.coach{margin-top:10px;padding-top:10px;border-top:1px solid rgba(127,127,127,.25);font-size:14.5px;white-space:pre-wrap}
-.coach .lbl{display:block;font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:3px}
-.coach.thinking{color:var(--muted)}
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
 .stats{display:flex;gap:22px;font-size:13px;color:var(--muted);padding-top:12px;border-top:1px solid var(--line)}
 .stats b{font-family:var(--serif);font-size:22px;font-weight:500;color:var(--ink);display:block;line-height:1.1}
@@ -232,14 +231,6 @@ details.adv summary{cursor:pointer;margin-bottom:6px}
 #tdExtra a,.hard a{color:var(--accent)}
 .daybar{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--accent-soft);border-radius:10px;padding:8px 8px 8px 12px;margin-bottom:12px;font-size:13.5px}
 .daybar .btn{padding:6px 12px;font-size:13px}
-.coach .fu-main{white-space:pre-wrap}
-.fu-q{margin-top:10px;font-weight:600;font-size:14px}
-.fu-q::before{content:"You: ";color:var(--muted);font-weight:500}
-.fu-a{white-space:pre-wrap;font-size:14.5px;margin-top:2px}
-.fu-a.err{color:var(--bad)}
-.fu-row{display:flex;gap:6px;margin-top:10px}
-.fu-in{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;font-size:14px}
-.fu-row .btn{padding:6px 12px}
 .r-graph{margin-top:10px;border-radius:6px;overflow:hidden;cursor:pointer;border:1px solid var(--line)}
 .r-graph svg{display:block;width:100%;height:90px}
 .r-moves{max-height:220px;overflow:auto}
@@ -294,9 +285,9 @@ header .nav-item[hidden]{display:inline-block !important}
 .btn:disabled{opacity:1;background:transparent;border-style:dashed;color:#97A2B2}
 .btn.primary:disabled{background:var(--track);border:1px solid var(--track);color:var(--muted)}
 /* segmented controls */
-.seg,#cModes,#dbChoice,#coachMode{display:inline-flex;flex-wrap:wrap;border:0;border-radius:8px;padding:3px;background:var(--track);gap:2px}
-.seg button,#cModes .chip,#dbChoice .chip,#coachMode .chip{border:0;background:transparent;border-radius:6px;padding:7px 14px;font-size:14px;font-weight:500;color:var(--muted)}
-.seg button[aria-pressed="true"],#cModes .chip[aria-pressed="true"],#dbChoice .chip[aria-pressed="true"],#coachMode .chip[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(23,34,49,.15)}
+.seg,#cModes,#dbChoice{display:inline-flex;flex-wrap:wrap;border:0;border-radius:8px;padding:3px;background:var(--track);gap:2px}
+.seg button,#cModes .chip,#dbChoice .chip{border:0;background:transparent;border-radius:6px;padding:7px 14px;font-size:14px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"],#cModes .chip[aria-pressed="true"],#dbChoice .chip[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(23,34,49,.15)}
 .seg img{width:20px;height:20px}
 /* openings */
 .setup{grid-template-columns:minmax(0,1fr) 380px;gap:32px}
@@ -345,7 +336,6 @@ header .nav-item[hidden]{display:inline-block !important}
 .settings .help{margin:0}
 .settings details.adv{margin:0;width:100%}
 .settings .inline{gap:8px}
-#coachBrowser,#coachServer{margin:0 !important;display:flex;flex-direction:column;gap:8px;width:100%}
 #ratingChoice{margin:0 !important}
 /* train */
 .train{grid-template-columns:minmax(0,min(600px,calc(100vh - 190px))) minmax(0,1fr);gap:32px}

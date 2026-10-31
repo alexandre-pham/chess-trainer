@@ -128,8 +128,6 @@ export { previewLine, renderColor, renderSel, renderSetup };
 function init(){
   $('asW').onclick = () => { S.color = 'w'; store.set('color','w'); renderColor(); };
   $('asB').onclick = () => { S.color = 'b'; store.set('color','b'); renderColor(); };
-  $('lang').value = S.lang;
-  $('lang').onchange = e => { S.lang = e.target.value; store.set('lang', S.lang); };
   $('maxMove').value = String(S.maxMove);
   $('maxMove').onchange = e => { S.maxMove = +e.target.value; store.set('maxMove', S.maxMove); };
   $('useEngine').value = String(S.useEngine);

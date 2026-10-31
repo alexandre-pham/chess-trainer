@@ -6,8 +6,7 @@ import { cards, dueCards, relevantCards, saveCards } from './srs.js';
 import { previewLine, renderSetup } from './setup.js';
 import { Sync } from './sync.js';
 import { Explorer } from './explorer.js';
-import { lineFens } from './analysis.js';
-import { Coach, GROUND, LANG, cancelCoach, factsBlock, historyText, pieceLists, renderCoach, renderInsight, verifyCoach, wikiQuick } from './coach.js';
+import { renderInsight, wikiQuick } from './explain.js';
 import { enterTraining, startLine, startReview, startReviewKey } from './trainer.js';
 import { C, fmtMoves, openCoords } from './squares.js';
 import { R, openReview } from './review.js';
@@ -107,13 +106,13 @@ function renderDayBar(){
     el.querySelector('button').onclick = openToday;
   });
 }
-// "Understand the plans": the coach explains the main position, plus master games to replay
+// "Understand the plans": the opening book's explanation of the main position, plus master games to replay
 async function showIdeas(){
   openToday(true);
   const line = previewLine(S.sel[0]) || LINES[0];
   const g = new Chess(); line[2].split(' ').forEach(m => g.move(m));
   const box = $('tdExtra'); box.hidden = false;
-  box.innerHTML = `<div class="pg-panel"><h2>The plans in ${esc(line[1])}</h2><div class="td-moves">${esc(fmtMoves(line[2].split(' '), 0).join(' '))}</div><div id="tdIdeasWiki" class="insight"></div><div id="tdIdeasText" class="coach">${Coach.available() ? 'Asking the coach…' : 'Turn on the coach in the setup page to get an explanation here.'}</div><div id="tdGamesList"></div><div class="inline" style="margin-top:12px"><button class="btn primary" id="tdIdeasDone">Done</button></div></div>`;
+  box.innerHTML = `<div class="pg-panel"><h2>The plans in ${esc(line[1])}</h2><div class="td-moves">${esc(fmtMoves(line[2].split(' '), 0).join(' '))}</div><div id="tdIdeasWiki" class="insight"></div><div id="tdGamesList"></div><div class="inline" style="margin-top:12px"><button class="btn primary" id="tdIdeasDone">Done</button></div></div>`;
   $('tdIdeasDone').onclick = () => { Daily.count('ideas'); box.hidden = true; renderToday(); };
   box.scrollIntoView({block: 'start'});
   // master games that reached this position (needs the Lichess connection)
@@ -126,27 +125,12 @@ async function showIdeas(){
       }
     }catch(e){}
   }
-  // the human explanation first (Wikibooks), then the coach summarises it
+  // the human explanation (Wikibooks)
   const sans = line[2].split(' ');
   const wi = {wiki: 'loading'}; renderInsight(wi, $('tdIdeasWiki'));
   wi.wiki = await wikiQuick(sans); renderInsight(wi, $('tdIdeasWiki'));
   if(wi.wiki){ const d = $('tdIdeasWiki').querySelector('details'); if(d) d.open = true; }
-  if(!Coach.available()) return;
-  const color = S.color === 'w' ? 'White' : 'Black';
-  const prompt = `The student plays ${color} in ${line[1]}.
-Main line: ${historyText(line[2].split(' '))}
-Pieces in the resulting position:
-${pieceLists(g)}
-
-${factsBlock(wi)}
-In ${LANG[S.lang]}, explain in 4 to 6 short sentences the typical plans for ${color} in this position: where the pieces usually go, which pawn breaks matter, and what the opponent aims for.${wi.wiki ? ' Base this on the opening-book text above.' : ''} ${GROUND} Plain text, no markdown, no lists.`;
-  try{
-    const info = {coach: '', coachState: 'thinking', prompt, thread: [], fens: [g.fen()], checkFens: lineFens(new Chess().fen(), sans)}; window.__ideasInfo = info;
-    const el = () => $('tdIdeasText');
-    renderCoach(info, el());
-    const r = await Coach.run(prompt, {onText: () => { if(info.coachState !== 'streaming'){ info.coachState = 'streaming'; renderCoach(info, el()); } }});
-    const v = verifyCoach(r.text, info); info.coach = v.text; info.removed = v.removed; info.coachState = 'done'; renderCoach(info, el());
-  }catch(e){ const el = $('tdIdeasText'); if(el) el.textContent = e.message || 'The coach could not answer.'; }
+  else { $('tdIdeasWiki').innerHTML = '<div class="ins-wiki ins-muted">No explanation of this position was found on Wikibooks.</div>'; $('tdIdeasWiki').style.display = ''; }
 }
 // "Check your own games": where did you leave your repertoire in your recent Lichess games?
 async function checkGames(){
@@ -232,7 +216,7 @@ async function checkGames(){
 let tdFrom = 'setup';
 function openToday(keepActive, keepExtra){
   if(!keepActive) Daily.active = null;
-  cancelCoach(); clearInterval(C.timer); C.timer = null; C.round = null;
+  clearInterval(C.timer); C.timer = null; C.round = null;
   ['setup', 'train', 'progress', 'coords', 'review'].forEach(id => $(id).hidden = true); R.token++;
   $('today').hidden = false; if(!keepExtra) $('tdExtra').hidden = true;
   $('toSetup').hidden = true; $('toToday').hidden = true; $('toCoords').hidden = false; $('toProgress').hidden = false;

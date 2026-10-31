@@ -2,7 +2,6 @@
 import { $, sleep } from './util.js';
 import { S } from './book.js';
 import { Explorer } from './explorer.js';
-import { Coach, Web } from './coach.js';
 
 /* ================= engine ================= */
 const Engine = {
@@ -57,7 +56,6 @@ function renderEngineNote(){
   else if(Engine.state === 'failed') parts.push('Stockfish could not start in this browser.');
   else parts.push('Loading Stockfish…');
   parts.push(Explorer.enabled() ? `Statistics: ${Explorer.label()}.` : 'Statistics are off (no Lichess token).');
-  parts.push(Coach.available() ? `Coach: ${Coach.label()}${S.coachMode === 'browser' && Web.state === 'loading' ? ' (loading)' : ''}.` : 'Coach is off.');
   $('engineNote').textContent = parts.join(' ');
 }
 function pvToSan(fen, pv, max){

@@ -2,10 +2,9 @@
 import { $ } from './util.js';
 import { S } from './book.js';
 import { renderColor, renderSetup } from './setup.js';
-import { checkExplorer, renderAuth, renderCoachMode, renderExplorerChoices } from './settings.js';
+import { checkExplorer, renderAuth, renderExplorerChoices } from './settings.js';
 import { Sync, renderSync } from './sync.js';
-import { cancelCoach } from './coach.js';
-import { enterTraining, game, newSession, renderAll, setTrainAlive, startLine, syncStats, trainAlive } from './trainer.js';
+import { enterTraining, game, newSession, renderAll, restoreSession, setTrainAlive, startLine, syncStats, trainAlive } from './trainer.js';
 import { C } from './squares.js';
 import { Daily, openToday } from './daily.js';
 import { R } from './review.js';
@@ -53,7 +52,7 @@ function start(){
     for(const r of recs){ if(SECTIONS.includes(r.target.id) && !r.target.hidden) SECTIONS.forEach(s => { if(s !== r.target.id && !$(s).hidden) $(s).hidden = true; }); }
     syncNav();
   }).observe(document.querySelector('.wrap'), {attributes: true, attributeFilter: ['hidden'], subtree: true});
-  $('toSetup').onclick = () => { leavePage(); cancelCoach(); newSession(); Daily.active = null; setTrainAlive(false); showOnly('setup'); renderSetup(); };
+  $('toSetup').onclick = () => { leavePage(); newSession(); Daily.active = null; setTrainAlive(false); showOnly('setup'); renderSetup(); };
   $('toSettings').onclick = () => { leavePage(); showOnly('settings'); };
   $('toTrain').onclick = () => {
     leavePage();
@@ -66,8 +65,6 @@ function start(){
   renderSetup();
   renderExplorerChoices();
   renderAuth();
-  renderCoachMode();
-  window.__coachLive = true;
   checkExplorer();
   // ask the browser to keep this site's data (progress, downloaded models) instead of clearing it when space runs low
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
@@ -75,6 +72,8 @@ function start(){
   if(Sync.connected()) Sync.syncNow();
   renderSetup();
   syncStats();
+  // back to the line in progress if the page was reloaded during training
+  restoreSession();
   syncNav();
 }
 

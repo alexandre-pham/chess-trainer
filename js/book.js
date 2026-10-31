@@ -22,11 +22,9 @@ const QUICK = ["Sicilian Defense","French Defense","Caro-Kann Defense","Scandina
 
 /* ================= settings ================= */
 const S = {
-  color: store.get('color','w'), lang: store.get('lang','en'), sel: store.get('sel', []),
+  color: store.get('color','w'), sel: store.get('sel', []),
   maxMove: store.get('maxMove', 15), useEngine: store.get('useEngine', 1),
-  token: store.get('token', ''), exDb: store.get('exDb', 'lichess'), ratings: store.get('ratings', [1600,1800,2000]),
-  coachUrl: store.get('coachUrl', 'http://localhost:11434/v1/chat/completions'), coachModel: store.get('coachModel', 'qwen3:8b'), coachKey: store.get('coachKey', ''),
-  coachMode: store.get('coachMode', 'browser'), webWhen: store.get('webWhen', 'demand'), webModel: store.get('webModel', 'Qwen3-4B-q4f16_1-MLC')
+  token: store.get('token', ''), exDb: store.get('exDb', 'lichess'), ratings: store.get('ratings', [1600,1800,2000])
 };
 
 let selFlags = new Uint8Array(LINES.length);

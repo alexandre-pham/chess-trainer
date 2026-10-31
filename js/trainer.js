@@ -1,10 +1,10 @@
 // The training board: game state, judging your moves, opponent moves, drawing, navigation.
-import { $, esc, pct, posKey } from './util.js';
+import { $, esc, pct, posKey, store } from './util.js';
 import { LINES, PIECES, POS } from './data.js';
 import { S, bookMoves, candidates, fenAfter, nameAfter, selFamilies, shortestLine } from './book.js';
 import { cards, dueCards, grade, logMove, progressCounts, saveCards, srsMult } from './srs.js';
 import { Explorer, minGames, scoreFor } from './explorer.js';
-import { Coach, Web, cancelCoach, coachExplain, explainLast, renderCoach, renderInsight } from './coach.js';
+import { explainLast, explainMistake, renderInsight } from './explain.js';
 import { Engine, fmtEval, fmtLine, pvToSan, renderEngineNote, uciMove, waitEngine } from './engine.js';
 import { Daily, nextWeak, openToday, renderDayBar } from './daily.js';
 
@@ -19,7 +19,7 @@ const moveNo = () => +game.fen().split(' ')[5];
 
 let redo = []; // moves undone with the back arrow, newest last
 function resetLine(){
-  cancelCoach(); sessionId++; redo = [];
+  sessionId++; redo = [];
   game = new Chess(); phase = 'book'; phaseEndName = null; userMarks.length = 0; lastFeedback = null; explainInfo = null;
   lastNamed = null; wrongInfo = null; selectedSq = null; hintOn = false; arrowsList = []; failedHere = null; reviewing = null;
 }
@@ -53,21 +53,21 @@ function recomputePhase(){
 }
 function navBack(){
   if(!game || !game.history().length || $('train').hidden) return;
-  cancelCoach(); sessionId++;
+  sessionId++;
   if(status === 'wrong'){ game.undo(); userMarks.pop(); wrongInfo = null; }  // drop the wrong move, as with Try again
   else { const m = game.undo(); redo.push({san: m.san, mark: userMarks.pop()}); }
   afterNav();
 }
 function navForward(){
   if(!redo.length || $('train').hidden) return;
-  cancelCoach(); sessionId++;
+  sessionId++;
   if(status === 'wrong'){ game.undo(); userMarks.pop(); wrongInfo = null; }
   const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); afterNav();
 }
 function navFirst(){ while(game && game.history().length) navBackSilent(); afterNav(); }
 function navLast(){ while(redo.length){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); } afterNav(); }
 function navBackSilent(){
-  cancelCoach(); sessionId++;
+  sessionId++;
   if(status === 'wrong'){ game.undo(); userMarks.pop(); wrongInfo = null; status = 'browse'; return; }
   const m = game.undo(); redo.push({san: m.san, mark: userMarks.pop()});
 }
@@ -193,7 +193,7 @@ function judgeBook(before, m){
   }
   const all = bookMoves(before);
   const otherName = all[m.san] ? nameAfter(before, m.san, shortestLine(all[m.san])) : null;
-  const info = {phase: 'book', before, move: m, cands: cands.map(c => ({san: c.san, label: nameAfter(before, c.san, c.line)})), otherName, engineState: Engine.available() ? 'running' : 'off', coach: '', coachState: 'idle'};
+  const info = {phase: 'book', before, move: m, cands: cands.map(c => ({san: c.san, label: nameAfter(before, c.san, c.line)})), otherName, engineState: Engine.available() ? 'running' : 'off'};
   reject(info);
   enrichMistake(info);
 }
@@ -208,7 +208,7 @@ async function judgeStats(before, m){
     accept(before, m, {kind: 'stats', san: m.san, share: mv.share, score: scoreFor(mv, S.color)});
     return;
   }
-  const info = {phase: 'stats', before, move: m, mv, cands: popular.slice(0, 4).map(x => ({san: x.san, share: x.share, score: scoreFor(x, S.color)})), total: ex.total, engineState: 'running', coach: '', coachState: 'idle'};
+  const info = {phase: 'stats', before, move: m, mv, cands: popular.slice(0, 4).map(x => ({san: x.san, share: x.share, score: scoreFor(x, S.color)})), total: ex.total, engineState: 'running'};
   // is it at least sound? ask the engine before deciding how hard to grade
   await waitEngine();
   if(Engine.available()){
@@ -219,7 +219,7 @@ async function judgeStats(before, m){
   } else info.engineState = 'off';
   info.rareButSound = !info.engine || info.engine.loss < 60;
   reject(info);
-  coachExplain(info);
+  explainMistake(info);
 }
 async function judgeEngine(before, m){
   const sid = sessionId, g = new Chess(before); g.move(m.san);
@@ -232,9 +232,9 @@ async function judgeEngine(before, m){
   const best = rb.lines[0].cp, you = inTop ? inTop.cp : -ra.cp, loss = best - you;
   if(loss < 60){ accept(before, m, {kind: 'engine', san: m.san, ev: you}); return; }
   const cands = rb.lines.filter(l => l.cp >= best - 30).map(l => { const gg = new Chess(before); return {san: uciMove(gg, l.pv[0]).san, ev: l.cp}; });
-  const info = {phase: 'engine', before, move: m, cands, engineState: 'done', coach: '', coachState: 'idle',
+  const info = {phase: 'engine', before, move: m, cands, engineState: 'done',
     engine: {you, book: best, loss, refutation: pvToSan(g.fen(), ra.pv, 6), bestLine: pvToSan(before, rb.lines[0].pv, 7).slice(1), afterFen: g.fen()}, verdict: verdictFor(loss)};
-  reject(info); coachExplain(info);
+  reject(info); explainMistake(info);
 }
 const verdictFor = loss => loss >= 250 ? 'Blunder' : loss >= 110 ? 'Mistake' : loss >= 45 ? 'Inaccuracy' : 'Playable, but not the main move';
 async function engineCompare(before, m, refSan){
@@ -265,22 +265,22 @@ async function enrichMistake(info){
     info.engineState = 'done';
   } else info.engineState = 'off';
   renderStatus();
-  coachExplain(info);
+  explainMistake(info);
 }
 function retry(){
   if(status !== 'wrong') return;
-  cancelCoach(); game.undo(); userMarks.pop(); wrongInfo = null; arrowsList = []; status = 'user'; lastFeedback = null; renderAll();
+  game.undo(); userMarks.pop(); wrongInfo = null; arrowsList = []; status = 'user'; lastFeedback = null; renderAll();
 }
 function showBest(){
   if(status !== 'wrong') return;
-  const w = wrongInfo; cancelCoach(); game.undo(); userMarks.pop();
+  const w = wrongInfo; game.undo(); userMarks.pop();
   const m = game.move(w.cands[0].san); userMarks.push('u');
   arrowsList = [[m.from, m.to]]; wrongInfo = null; lastFeedback = {kind: 'shown', san: m.san}; failedHere = null;
   updateName(); nextTurn();
 }
 function keepMine(){
   if(status !== 'wrong') return;
-  const w = wrongInfo; cancelCoach(); wrongInfo = null; userMarks[userMarks.length - 1] = 'u'; stats.bad--;
+  const w = wrongInfo; wrongInfo = null; userMarks[userMarks.length - 1] = 'u'; stats.bad--;
   // re-grade: a sound but rare move is "hard", not a miss
   const c = cards[posKey(w.before)]; if(c && c.lapses){ c.lapses--; saveCards(); }
   gradeHereForce(w.before, 'hard');
@@ -404,7 +404,7 @@ function renderStatus(){
     body += `<ul class="book-list">${w.cands.slice(0,4).map(candRow).join('')}</ul>`;
     if(e) body += `<div class="engine"><span class="lbl">Stockfish:</span> ${esc(w.cands[0].san)} ${fmtEval(e.book)}, your move ${fmtEval(e.you)}. ${e.refutation.length ? 'Likely continuation: ' + esc(fmtLine(e.afterFen, e.refutation)) : ''}</div>`;
     else if(w.engineState === 'running') body += `<div class="engine"><span class="lbl">Stockfish is checking the move…</span></div>`;
-    body += `<div id="insight" class="insight"></div><div id="coach" class="coach"></div>`;
+    body += `<div id="insight" class="insight"></div>`;
     acts = [['Try again', retry, 'primary'], [w.phase === 'engine' ? 'Show the best move' : 'Show the main move', showBest]];
     if(w.phase === 'stats' && w.rareButSound) acts.push(['Continue with my move', keepMine]);
   } else if(status === 'done'){
@@ -417,7 +417,7 @@ function renderStatus(){
     const ds = Daily.active && Daily.step(Daily.active);
     if(ds && ds.done >= ds.target) acts = [['Next step of today\'s plan', () => openToday(), 'primary'], ...acts.map(a => [a[0], a[1]])];
     else if(Daily.active === 'weak' && Daily.weakQueue.length) acts = [['Next mistake to fix', nextWeak, 'primary'], ...acts.map(a => [a[0], a[1]])];
-    if(Coach.available()) acts.push(['Explain the last move', explainLast]);
+    acts.push(['Explain the last move', explainLast]);
   } else if(status === 'checking' || status === 'loading'){
     title = status === 'checking' ? 'Checking your move…' : 'Looking up what players choose here…';
     body = phaseNote(); acts = [['Restart line', startLine]];
@@ -433,18 +433,19 @@ function renderStatus(){
     body = redo.length ? `Play a move to continue from here. It is judged as usual, and the later moves are replaced. Use ▶ to step forward instead.<br>${phaseNote()}`
       : [feedbackLine(), phaseNote()].filter(Boolean).join('<br>') || (game.history().length ? '' : 'Play the first move of your opening.');
     acts = [['Hint', toggleHint]];
-    if(Coach.available()) acts.push(['Explain the last move', explainLast, '', !game.history().length]);
+    acts.push(['Explain the last move', explainLast, '', !game.history().length]);
     acts.push(['Restart line', startLine]);
   }
   st.className = cls;
   st.innerHTML = `${tag}<div class="st-title">${title}</div>${body ? `<div class="st-body">${body}</div>` : ''}`;
-  if(status === 'wrong' && wrongInfo){ renderInsight(wrongInfo); renderCoach(wrongInfo); }
-  else if(explainInfo){ st.insertAdjacentHTML('beforeend', '<div id="insight" class="insight"></div><div id="coach" class="coach"></div>'); renderInsight(explainInfo); renderCoach(explainInfo); }
+  if(status === 'wrong' && wrongInfo){ renderInsight(wrongInfo); }
+  else if(explainInfo){ st.insertAdjacentHTML('beforeend', '<div id="insight" class="insight"></div>'); renderInsight(explainInfo); }
   ac.innerHTML = '';
   acts.forEach(([label, fn, kind, dis]) => { const b = document.createElement('button'); b.className = 'btn' + (kind ? ' ' + kind : ''); b.textContent = label; b.onclick = fn; if(dis) b.disabled = true; ac.appendChild(b); });
   const pc = progressCounts();
   $('sGood').textContent = stats.good; $('sBad').textContent = stats.bad; $('sDue').textContent = pc.due; $('sKnown').textContent = pc.known;
   syncStats();
+  saveSession();
 }
 function feedbackLine(){
   const f = lastFeedback; if(!f) return '';
@@ -464,12 +465,40 @@ function renderNav(){
 }
 function renderAll(){ renderBoard(); renderMoves(); renderName(); renderStatus(); renderNav(); }
 
+/* ================= surviving a reload ================= */
+// Phones often reload a page that was in the background, or after a pull-to-refresh. The line in progress is saved
+// after every change and played back on start-up, so a reload returns to the board instead of the Openings page.
+const SESSION_MAX_AGE = 12 * 3600 * 1000;
+function saveSession(){
+  if(!trainAlive || !game) return;
+  const moves = game.history(), marks = userMarks.slice(0, moves.length);
+  if(status === 'wrong'){ moves.pop(); marks.pop(); }   // come back to the position before the wrong move (it is already graded)
+  while(marks.length < moves.length) marks.push('u');
+  store.set('session', {t: Date.now(), color: S.color, moves, marks, reviewing, phase, phaseEndName, statsEnd,
+    done: status === 'done', daily: Daily.active, good: stats.good, bad: stats.bad});
+}
+function restoreSession(){
+  const s = store.get('session', null);
+  if(!s || !Array.isArray(s.moves) || Date.now() - (s.t || 0) > SESSION_MAX_AGE) return false;
+  try{
+    if(s.color === 'w' || s.color === 'b') S.color = s.color;
+    Daily.active = s.daily || null; stats.good = s.good || 0; stats.bad = s.bad || 0;
+    enterTraining(); resetLine();
+    for(let i = 0; i < s.moves.length; i++){ if(!game.move(s.moves[i])) break; userMarks.push(s.marks[i] || 'u'); }
+    reviewing = s.reviewing || null; recomputeName(); nameFresh = false;
+    phase = s.phase || 'book'; phaseEndName = s.phaseEndName || null; statsEnd = s.statsEnd || null;
+    if(s.done){ status = 'done'; renderAll(); }
+    else nextTurn();
+    return true;
+  }catch(e){ console.error(e); store.set('session', null); return false; }
+}
+
 /* ================= navigation ================= */
 let trainAlive = false;  // a training game is in progress (the Train tab returns to it)
-function setTrainAlive(v){ trainAlive = v; }
+function setTrainAlive(v){ trainAlive = v; if(!v) store.set('session', null); }
 function setExplainInfo(v){ explainInfo = v; }
 function newSession(){ sessionId++; }
-function enterTraining(){ trainAlive = true; $('progress').hidden = true; $('coords').hidden = true; $('today').hidden = true; $('review').hidden = true; $('toToday').hidden = false; renderDayBar(); $('setup').hidden = true; $('train').hidden = false; $('toSetup').hidden = false; window.scrollTo(0,0); Engine.init(); if(S.coachMode === 'browser' && S.webWhen === 'start' && Web.supported()) Web.load().then(renderEngineNote, renderEngineNote); renderEngineNote(); }
+function enterTraining(){ trainAlive = true; $('progress').hidden = true; $('coords').hidden = true; $('today').hidden = true; $('review').hidden = true; $('toToday').hidden = false; renderDayBar(); $('setup').hidden = true; $('train').hidden = false; $('toSetup').hidden = false; window.scrollTo(0,0); Engine.init(); renderEngineNote(); }
 
 /* ================= input: click and drag ================= */
 let drag = null;
@@ -478,7 +507,7 @@ const sqAt = (x, y) => { const el = document.elementFromPoint(x, y); const s = e
 /* --- training stats only once there is something to show --- */
 function syncStats(){ const st = document.querySelector('#train .stats'); if(st) st.hidden = ['sGood', 'sBad', 'sDue', 'sKnown'].every(id => $(id).textContent === '0'); }
 
-export { BRUSH, enterTraining, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
+export { BRUSH, enterTraining, restoreSession, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

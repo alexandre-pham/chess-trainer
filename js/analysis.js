@@ -133,7 +133,5 @@ function analyseMistake({before, played, playedLine = [], best = null, bestLine 
   if(newPassOpp.length) out.push(`${played} gives ${SIDE(opp)} a passed pawn on ${newPassOpp.join(' and ')}.`);
   return out;
 }
-// every position along the lines, used to check what the coach writes
-function lineFens(fen, sans){ const g = new Chess(fen), out = [g.fen()]; for(const s of sans){ if(!g.move(s)) break; out.push(g.fen()); } return out; }
 
-export { analyseMistake, evalWords, lineFens };
+export { analyseMistake, evalWords };
