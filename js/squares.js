@@ -4,7 +4,7 @@ import { LINES, PIECES } from './data.js';
 import { LINE_PLIES, S, famFlags, selFlags } from './book.js';
 import { renderSetup } from './setup.js';
 import { Sync } from './sync.js';
-import { PNAME, cancelCoach } from './coach.js';
+import { PNAME } from './explain.js';
 import { BRUSH, files, game, renderAll } from './trainer.js';
 import { Engine, uciMove, waitEngine } from './engine.js';
 import { Daily, openToday, renderDayBar } from './daily.js';
@@ -374,7 +374,6 @@ function cStart(){
 let cFrom = 'setup';
 function openCoords(){
   cFrom = !$('train').hidden ? 'train' : !$('progress').hidden ? 'progress' : !$('today').hidden ? 'today' : 'setup';
-  cancelCoach();
   ['setup', 'train', 'progress', 'today', 'review'].forEach(id => $(id).hidden = true); $('toToday').hidden = false; renderDayBar();
   $('coords').hidden = false; $('toSetup').hidden = true; $('toCoords').hidden = true; $('toProgress').hidden = false;
   cStart(); window.scrollTo(0, 0);

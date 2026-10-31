@@ -90,27 +90,6 @@
         <div class="set-ctl"><select id="useEngine"><option value="1">Keep playing with Stockfish</option><option value="0">End the line</option></select></div>
       </div>
       <div class="set-row">
-        <div class="set-lbl"><b>Coach</b><span>Explains moves in plain language.</span></div>
-        <div class="set-ctl">
-          <div class="inline" id="coachMode"></div>
-          <div id="coachBrowser">
-            <select id="webModel" class="small"></select>
-            <select id="webWhen" class="small"><option value="demand">Load it only when I ask the coach</option><option value="start">Load it when I start training</option></select>
-            <div class="bar" style="width:100%;max-width:420px"><i id="webBar"></i></div>
-            <p class="help" id="webHelp"></p>
-          </div>
-          <div id="coachServer">
-            <input type="url" id="coachUrl" placeholder="http://localhost:11434/v1/chat/completions">
-            <input type="text" id="coachModel" placeholder="Model, e.g. qwen3:8b">
-            <input type="password" id="coachKey" placeholder="API key (optional, not needed for Ollama)">
-            <p class="help">Any OpenAI-compatible server: Ollama, LM Studio, llama.cpp, vLLM.</p>
-          </div>
-          <div class="inline" id="coachBtns"><button class="btn" id="webLoad">Load the model</button><button class="btn" id="coachTest">Test the coach</button></div>
-          <div class="conn" id="coachConn"></div>
-          <label class="inline" for="lang" style="font-size:14px">Explanations in <select id="lang"><option value="en">English</option><option value="fr">Français</option></select></label>
-        </div>
-      </div>
-      <div class="set-row">
         <div class="set-lbl"><b>Sync and backup</b><span>Keep progress across browsers, or save it as a file.</span></div>
         <div class="set-ctl">
           <div id="syncBox" style="width:100%"></div>

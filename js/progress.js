@@ -4,7 +4,6 @@ import { S, rebuildSel } from './book.js';
 import { cardsFor, moveLog } from './srs.js';
 import { renderSetup } from './setup.js';
 import { Sync } from './sync.js';
-import { cancelCoach } from './coach.js';
 import { enterTraining, game, renderAll, reviewing, startReviewKey, syncStats } from './trainer.js';
 import { C, coordLog } from './squares.js';
 import { Daily } from './daily.js';
@@ -98,7 +97,6 @@ const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + Stri
 const fmtDay = k => new Date(k + 'T12:00').toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
 function openProgress(){
   pgFrom = !$('train').hidden ? 'train' : 'setup';
-  cancelCoach();
   if(!$('coords').hidden){ clearInterval(C.timer); C.timer = null; C.round = null; }
   $('setup').hidden = true; $('train').hidden = true; $('coords').hidden = true; $('today').hidden = true; $('review').hidden = true; $('toToday').hidden = false; $('progress').hidden = false; $('toSetup').hidden = true; $('toProgress').hidden = true; $('toCoords').hidden = false;
   // openings you have practised, most recent first

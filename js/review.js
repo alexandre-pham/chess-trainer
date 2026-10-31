@@ -3,16 +3,16 @@ import { $, esc, posKey, sleep, store } from './util.js';
 import { LINES, PIECES, POS } from './data.js';
 import { S, bookMoves, selFamilies } from './book.js';
 import { cards, saveCards } from './srs.js';
-import { analyseMistake, lineFens } from './analysis.js';
-import { Coach, LANG, SUMMARY_RULES, cancelCoach, factsBlock, historyText, moveFacts, newCoachCtl, pieceLists, renderCoach, renderInsight, verifyCoach, wikiQuick } from './coach.js';
+import { analyseMistake } from './analysis.js';
+import { renderInsight, wikiQuick } from './explain.js';
 import { BRUSH, enterTraining, files, startReviewKey } from './trainer.js';
 import { Engine, fmtLine, pvToSan, uciMove, waitEngine } from './engine.js';
 import { openToday } from './daily.js';
 
 /* ================= game review ================= */
 // Replays one of your Lichess games: book moves, Stockfish evaluation of every move, your mistakes with the better move,
-// the coach to explain them, and positions to practise.
-const R = {gm: null, sans: [], fens: [], moves: [], evals: [], best: [], pvs: [], judg: [], ply: 0, my: 'w', bookEnd: 0, token: 0, source: '', info: null};
+// the facts behind them, and positions to practise.
+const R = {gm: null, sans: [], fens: [], moves: [], evals: [], best: [], pvs: [], judg: [], ply: 0, my: 'w', bookEnd: 0, token: 0, source: ''};
 const wc = cp => 2 / (1 + Math.exp(-0.00368208 * Math.max(-1000, Math.min(1000, cp)))) - 1;  // winning chances, as Lichess computes them
 const JUDG = {Inaccuracy: '?!', Mistake: '?', Blunder: '??'};
 function evalText(cp){ if(cp == null) return '…'; if(Math.abs(cp) >= 9000) return cp > 0 ? 'White mates' : 'Black mates'; return (cp >= 0 ? '+' : '−') + (Math.abs(cp) / 100).toFixed(1); }
@@ -28,10 +28,9 @@ function judgeMove(j){
 }
 function openReview(gm){
   R.token++; const tok = R.token;
-  cancelCoach();
   ['setup', 'train', 'progress', 'coords', 'today'].forEach(id => $(id).hidden = true);
   $('review').hidden = false; $('toToday').hidden = false; $('toCoords').hidden = false; $('toProgress').hidden = false; $('toSetup').hidden = true;
-  rStopAuto(); R.gm = gm; R.info = null; R.var = null; R.sel = null; R.vEval = new Map();
+  rStopAuto(); R.gm = gm; R.var = null; R.sel = null; R.vEval = new Map();
   R.sans = (gm.moves || '').split(' ').filter(Boolean);
   const me = (S.user || '').toLowerCase();
   R.my = ((gm.players.white.user || {}).name || '').toLowerCase() === me ? 'w' : 'b';
@@ -152,13 +151,11 @@ function rRenderNote(){
     if(R.pvs[j] && R.pvs[j].length) body += ` After ${esc(m.san)}: ${esc(fmtLine(R.fens[j], R.pvs[j].slice(0, 4)))}.`;
     if(R.pvs[j - 1] && R.pvs[j - 1].length) acts.push(['Play the best line', () => rStartVar(j - 1, R.pvs[j - 1], `Best line instead of ${num}`)]);
     if(R.pvs[j] && R.pvs[j].length) acts.push([`Play what follows ${m.san}`, () => rStartVar(j, R.pvs[j], `After ${num}`)]);
-    if(Coach.available()) acts.push(['Explain with the coach', () => rExplain(j, bestSan)]);
     if(mine) acts.push(['Practise this position', () => rPractise(j)]);
   } else { title = num; if(j === R.bookEnd + 1 && R.bookEnd) body = mine ? 'You left the opening book here.' : 'Your opponent left the opening book here.'; }
   body += ` <span class="r-eval">Evaluation: ${evalText(R.evals[j])}</span>`;
-  el.className = cls; el.innerHTML = `<div class="st-title">${title}</div><div class="st-body">${body}</div><div id="rInsight" class="insight"></div><div id="rCoach" class="coach" style="display:none"></div>`;
+  el.className = cls; el.innerHTML = `<div class="st-title">${title}</div><div class="st-body">${body}</div><div id="rInsight" class="insight"></div>`;
   if(jd) rInsight(j);
-  if(R.info && R.info.ply === j) renderCoach(R.info, $('rCoach'));
   $('rActions').innerHTML = '';
   acts.forEach(([l, fn]) => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = l; b.onclick = fn; $('rActions').appendChild(b); });
 }
@@ -209,7 +206,7 @@ async function rRenderLines(){
 // R.var: {startPly, base, sans, i, label}; the board shows the position after the first i moves of the line
 function rStopAuto(){ if(R.auto){ clearInterval(R.auto); R.auto = null; } }
 function rStartVar(startPly, sans, label){
-  rStopAuto(); cancelCoach();
+  rStopAuto();
   R.var = {startPly, base: R.fens[startPly], sans: [...sans], i: 0, label}; R.sel = null;
   rVarRender();
   // play the line by itself, one move a second; any click or key stops it
@@ -299,40 +296,12 @@ function rInsightInfo(j){
   const before = R.fens[j - 1], m = R.moves[j - 1], b = R.best[j - 1];
   let bestSan = ''; if(b){ const bm = uciMove(new Chess(before), b); if(bm) bestSan = bm.san; }
   const bestLine = (R.pvs[j - 1] || []).slice(1), playedLine = R.pvs[j] || [];
-  const x = {analysis: analyseMistake({before, played: m.san, playedLine, best: bestSan || null, bestLine, evPlayed: R.evals[j], evBest: R.evals[j - 1]}),
-    checkFens: [...lineFens(before, [m.san, ...playedLine]), ...(bestSan ? lineFens(before, [bestSan, ...bestLine]) : [])], wiki: j <= 30 ? 'loading' : null};
+  const x = {analysis: analyseMistake({before, played: m.san, playedLine, best: bestSan || null, bestLine, evPlayed: R.evals[j], evBest: R.evals[j - 1]}), wiki: j <= 30 ? 'loading' : null};
   R.ins[j] = x;
   if(x.wiki === 'loading') wikiQuick(R.sans.slice(0, j - 1)).then(w => { x.wiki = w; if(R.ply === j && !R.var) renderInsight(x, $('rInsight')); });
   return x;
 }
 function rInsight(j){ renderInsight(rInsightInfo(j), $('rInsight')); }
-async function rExplain(j, bestSan){
-  const before = R.fens[j - 1], m = R.moves[j - 1], mover = j % 2 === 1 ? 'White' : 'Black', jd = R.judg[j];
-  const ins = rInsightInfo(j);
-  if(ins.wiki === 'loading') ins.wiki = await wikiQuick(R.sans.slice(0, j - 1));
-  const info = {coach: '', coachState: 'thinking', thread: [], fens: [before, R.fens[j]], checkFens: ins.checkFens, analysis: ins.analysis, wiki: ins.wiki, ply: j}; R.info = info;
-  renderCoach(info, $('rCoach'));
-  const prompt = `This is a real game. ${mover} ${mover === (R.my === 'w' ? 'White' : 'Black') ? '(the student)' : "(the student's opponent)"} played ${Math.ceil(j / 2)}${mover === 'White' ? '.' : '...'} ${m.san}, judged a ${jd.toLowerCase()} by Stockfish.
-Moves: ${historyText(R.sans.slice(0, j))}
-Position before the move (FEN): ${before}
-Stockfish evaluation before: ${evalText(R.evals[j - 1])}; after ${m.san}: ${evalText(R.evals[j])} (positive is better for White).
-${bestSan ? `Better was ${bestSan}. Best line: ${fmtLine(before, (R.pvs[j - 1] || []).slice(0, 6))}.` : ''}
-${R.pvs[j] && R.pvs[j].length ? `Engine's best continuation after ${m.san}: ${fmtLine(R.fens[j], R.pvs[j].slice(0, 5))}.` : ''}
-What ${m.san} did: ${moveFacts(before, m.san)}
-${bestSan ? `What ${bestSan} would do: ${moveFacts(before, bestSan)}` : ''}
-Pieces before the move:
-${pieceLists(new Chess(before))}
-
-${factsBlock(info)}
-In ${LANG[S.lang]}, write 2 or 3 short sentences that explain in plain words why ${m.san} was a ${jd.toLowerCase()} and what ${bestSan || 'the better move'} achieves instead. ${SUMMARY_RULES} Plain text, no markdown, no lists.`;
-  info.prompt = prompt;
-  const ctl = newCoachCtl();
-  try{
-    const r = await Coach.run(prompt, {signal: ctl.signal, onText: () => { if(R.info === info && info.coachState !== 'streaming'){ info.coachState = 'streaming'; if(R.ply === j) renderCoach(info, $('rCoach')); } }});
-    const v = verifyCoach(r.text, info); info.coach = v.text; info.removed = v.removed; info.coachState = 'done';
-  }catch(e){ if(e.name === 'AbortError') return; info.coachState = 'error'; info.coachError = e.message; }
-  if(R.ply === j) renderCoach(info, $('rCoach'));
-}
 function rPractise(j){
   const before = R.fens[j - 1], key = posKey(before), path = R.sans.slice(0, j - 1);
   let name = ''; const gg = new Chess(); for(const mv of path){ gg.move(mv); const p = POS[posKey(gg.fen())]; if(p && p[1]) name = LINES[p[0]][1]; }
@@ -343,7 +312,7 @@ function rPractise(j){
   closeReview(true); enterTraining(); startReviewKey(key);
 }
 function closeReview(silent){
-  R.token++; cancelCoach();
+  R.token++;
   $('review').hidden = true;
   if(!silent){ openToday(true, true); }
 }

@@ -14,9 +14,8 @@ Live: https://alexandre-pham.github.io/chess-trainer/
   that real players choose (Lichess players by rating, or masters).
 - **Stockfish**: checks your moves once theory ends, and analyses your games.
 - **Explanations**: for each mistake, facts computed from the position and Stockfish's
-  lines (material, the opponent's reply, loose pieces, pawn structure), the human-written
-  explanation of the opening from Wikibooks, and an optional AI summary that is checked
-  sentence by sentence against the position (browser model or an OpenAI-compatible server).
+  lines (material, the opponent's reply, loose pieces, pawn structure), and the
+  human-written explanation of the opening from Wikibooks.
 - **Spaced repetition**: every position you must find is a card; missed positions
   come back sooner.
 - **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, your games).
@@ -48,13 +47,13 @@ js/data.js         loads the opening book and piece images
 js/book.js         opening families, selection and settings, book moves
 js/srs.js          spaced repetition cards and answer log
 js/setup.js        Openings page
-js/settings.js     Settings page: Lichess sign-in, statistics, coach, backup
+js/settings.js     Settings page: Lichess sign-in, statistics, backup
 js/sync.js         merging progress, GitHub gist sync
 js/explorer.js     Lichess Opening Explorer client
 js/analysis.js     plain-language facts about a move (no AI)
 js/wikibooks.js    opening explanations from Wikibooks
-js/coach.js        coach: in-browser model or server, prompts, checks, follow-up questions
-js/trainer.js      training board: game state, judging moves, drawing, navigation
+js/explain.js      explanations: position facts and Wikibooks text
+js/trainer.js      training board: game state, judging moves, drawing, navigation, restoring after a reload
 js/engine.js       Stockfish in a background worker
 js/squares.js      Squares page
 js/daily.js        Today's plan and the check of your games
@@ -80,4 +79,4 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
   collections, as packaged in [Dragjon/chessdatabase](https://github.com/Dragjon/chessdatabase) (MIT);
   Deep Blue vs Kasparov 1997 from the python-chess test data.
 - Opening explanations: Wikibooks, Chess Opening Theory (CC BY-SA), fetched live and credited with a link.
-- Move statistics: Lichess Opening Explorer. In-browser models: WebLLM (MLC).
+- Move statistics: Lichess Opening Explorer.

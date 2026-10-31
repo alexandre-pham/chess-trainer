@@ -1,11 +1,10 @@
-// The Settings page: Lichess sign-in, move statistics, coach and backup controls.
+// The Settings page: Lichess sign-in, move statistics and backup controls.
 import { $, b64url, esc, randomStr, store } from './util.js';
 import { S } from './book.js';
 import { cards, moveLog } from './srs.js';
 import { renderSel } from './setup.js';
 import { mergeProgress } from './sync.js';
 import { Explorer } from './explorer.js';
-import { Coach, Web, renderWebProgress } from './coach.js';
 import { coordLog, coordRounds } from './squares.js';
 import { Daily } from './daily.js';
 import { timeLog } from './progress.js';
@@ -88,26 +87,9 @@ async function checkExplorer(){
 }
   
 
-const WEB_MODELS = [
-  ['Qwen3-4B-q4f16_1-MLC', 'Qwen3 4B', 3.4], ['Qwen3.5-4B-q4f16_1-MLC', 'Qwen3.5 4B', 3.9], ['Qwen3.5-2B-q4f16_1-MLC', 'Qwen3.5 2B', 2.2],
-  ['Llama-3.2-3B-Instruct-q4f16_1-MLC', 'Llama 3.2 3B', 2.3], ['Phi-4-mini-instruct-q4f16_1-MLC', 'Phi-4 mini', 3.4],
-  ['Qwen3-8B-q4f16_1-MLC', 'Qwen3 8B', 5.7], ['Qwen3.5-9B-q4f16_1-MLC', 'Qwen3.5 9B', 6.4]
-];
-const webName = id => (WEB_MODELS.find(m => m[0] === id) || [id, id])[1];
-function renderCoachMode(){
-  $('coachMode').innerHTML = [['browser','In the browser'],['server','Ollama or server'],['off','Off']].map(([v,l]) =>
-    `<button class="chip" data-cm="${v}" aria-pressed="${S.coachMode === v}">${l}</button>`).join('');
-  $('coachMode').querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { S.coachMode = b.dataset.cm; store.set('coachMode', S.coachMode); $('coachConn').textContent = ''; renderCoachMode(); });
-  $('coachBrowser').hidden = S.coachMode !== 'browser';
-  $('coachServer').hidden = S.coachMode !== 'server';
-  $('coachBtns').hidden = S.coachMode === 'off';
-  $('webLoad').hidden = S.coachMode !== 'browser';
-  renderWebProgress();
-}
-
 /* --- export / import --- */
 
-export { WEB_MODELS, checkExplorer, renderAuth, renderCoachMode, renderExplorerChoices, webName };
+export { checkExplorer, renderAuth, renderExplorerChoices };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){
@@ -131,27 +113,6 @@ function init(){
   })();
   $('lichessToken').value = S.user ? '' : S.token;
   $('lichessToken').onchange = e => setToken(e.target.value.trim(), '');
-  $('coachUrl').value = S.coachUrl;
-  $('coachModel').value = S.coachModel;
-  $('coachKey').value = S.coachKey;
-  $('coachUrl').onchange = e => { S.coachUrl = e.target.value.trim(); store.set('coachUrl', S.coachUrl); };
-  $('coachModel').onchange = e => { S.coachModel = e.target.value.trim(); store.set('coachModel', S.coachModel); };
-  $('coachKey').onchange = e => { S.coachKey = e.target.value.trim(); store.set('coachKey', S.coachKey); };
-  $('webModel').innerHTML = WEB_MODELS.map(([id, n, gb]) => `<option value="${id}">${n} (about ${gb} GB)</option>`).join('');
-  $('webModel').value = S.webModel;
-  $('webModel').onchange = e => { S.webModel = e.target.value; store.set('webModel', S.webModel); renderWebProgress(); };
-  $('webLoad').onclick = () => { if(Web.state === 'ready' && Web.loadedId === S.webModel) Web.unload(); else Web.load().catch(() => {}); };
-  $('webWhen').value = S.webWhen;
-  $('webWhen').onchange = e => { S.webWhen = e.target.value; store.set('webWhen', S.webWhen); renderWebProgress(); };
-  $('coachTest').onclick = async () => {
-    const el = $('coachConn');
-    if(!Coach.available()){ el.className = 'conn err'; el.textContent = S.coachMode === 'browser' ? 'This browser has no WebGPU. Use Chrome or Edge, or switch to Ollama.' : 'Enter the address and the model name first.'; return; }
-    el.className = 'conn'; el.textContent = 'Asking the coach…';
-    try{
-      const r = await Coach.run('In one short sentence, what is the main idea of the Sicilian Defense for Black? Plain text.', {});
-      el.className = 'conn ok'; el.textContent = 'Coach works: ' + r.text.slice(0, 160);
-    }catch(e){ el.className = 'conn err'; el.textContent = e.message; }
-  };
   $('exportBtn').onclick = () => {
     const blob = new Blob([JSON.stringify({version: 5, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog})], {type: 'application/json'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'opening-trainer-progress.json'; a.click();
