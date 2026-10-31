@@ -12,7 +12,8 @@ Live: https://alexandre-pham.github.io/chess-trainer/
   name, ECO code or moves. Train as White or Black, a whole opening or one variation.
 - **Move statistics**: with a Lichess connection, the opponent plays the moves
   that real players choose (Lichess players by rating, or masters).
-- **Stockfish**: checks your moves once theory ends, and analyses your games.
+- **Stockfish**: checks your moves once theory ends, and analyses your games. An optional
+  evaluation bar and the top 3 engine lines (hidden on your turn until you ask).
 - **Explanations**: for each mistake, facts computed from the position and Stockfish's
   lines (material, the opponent's reply, loose pieces, pawn structure), and the
   human-written explanation of the opening from Wikibooks.

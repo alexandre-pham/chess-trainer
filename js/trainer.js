@@ -352,21 +352,80 @@ function toggleDrawing(from, to, color){
 function renderMoves(){
   const h = game.history();
   if(!h.length && !redo.length){ $('moves').innerHTML = `<span class="ph">${S.color === 'w' ? 'You have White. Make the first move.' : 'You have Black. The trainer opens.'}</span>`; return; }
-  let s = '';
-  h.forEach((m, i) => {
-    if(i % 2 === 0) s += `<span class="n">${i/2 + 1}.</span> `;
-    const mk = userMarks[i], cls = ['m'];
-    if(mk === 'u') cls.push('u'); if(mk === 'x') cls.push('x'); if(i === h.length - 1) cls.push('cur');
-    s += `<span class="${cls.join(' ')}">${esc(m)}</span> `;
-  });
-  if(redo.length){
-    let n = h.length;
-    for(let i = redo.length - 1; i >= 0; i--, n++){
-      if(n % 2 === 0) s += `<span class="n" style="opacity:.45">${n/2 + 1}.</span> `;
-      s += `<span class="m" style="opacity:.45">${esc(redo[i].san)}</span> `;
+  // one row per move number, White and Black in two columns (as on Lichess); undone moves stay, dimmed
+  const all = h.map((san, i) => ({san, mark: userMarks[i], ply: i + 1}));
+  for(let i = redo.length - 1; i >= 0; i--) all.push({san: redo[i].san, mark: redo[i].mark, ply: all.length + 1, ahead: true});
+  let s = '<div class="mt">';
+  for(let i = 0; i < all.length; i += 2){
+    s += `<span class="n">${i/2 + 1}</span>`;
+    for(const x of [all[i], all[i + 1]]){
+      if(!x){ s += '<span class="m empty"></span>'; continue; }
+      const cls = ['m'];
+      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
+      s += `<span class="${cls.join(' ')}" data-ply="${x.ply}" role="button" tabindex="0">${esc(x.san)}</span>`;
     }
   }
-  $('moves').innerHTML = s;
+  $('moves').innerHTML = s + '</div>';
+  const mt = $('moves').firstChild, cur = mt.querySelector('.cur');
+  if(cur) mt.scrollTop = Math.max(0, cur.offsetTop - mt.clientHeight / 2);
+}
+// tap a move in the list to go to that position
+function jumpTo(ply){
+  if(!game || $('train').hidden || ply === game.history().length) return;
+  while(game.history().length > ply) navBackSilent();
+  while(game.history().length < ply && redo.length){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); }
+  afterNav();
+}
+
+/* ================= evaluation bar and Stockfish's best moves ================= */
+let showEngine = store.get('showEngine', false), engPending = null, engReveal = null;
+const engCache = new Map();
+const winPct = cp => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);  // as Lichess draws its bar
+const evalLabel = cp => Math.abs(cp) >= 9000 ? 'M' + (10000 - Math.abs(cp)) : (cp >= 0 ? '+' : '−') + (Math.abs(cp) / 100).toFixed(1);
+function renderEnginePanel(){
+  $('navEngine').setAttribute('aria-pressed', String(showEngine));
+  $('evalBar').hidden = $('engLines').hidden = !showEngine;
+  if(!showEngine || !game) return;
+  const fen = game.fen();
+  if(game.game_over()){
+    const cp = game.in_checkmate() ? (game.turn() === 'w' ? -10000 : 10000) : 0;
+    drawEngine(fen, {lines: []}, cp, game.in_checkmate() ? 'Checkmate.' : 'Draw.'); return;
+  }
+  const r = engCache.get(fen);
+  if(r){ drawEngine(fen, r); return; }
+  drawEngine(fen, null);
+  // the trainer's own checks come first: analyse once the board is waiting for a move
+  if(!['user', 'browse', 'wrong', 'done'].includes(status) || engPending === fen) return;
+  engPending = fen;
+  waitEngine().then(() => Engine.available() ? Engine.analyse(fen, 14, 3, 1500) : null).then(res => {
+    if(engPending === fen) engPending = null;
+    if(res) engCache.set(fen, res);
+    if(game && game.fen() === fen) drawEngine(fen, res, null, res ? '' : 'Stockfish is not available.');
+  });
+}
+function drawEngine(fen, r, fixedCp, note){
+  const white = fen.split(' ')[1] === 'w';
+  const cp = fixedCp != null ? fixedCp : r && r.lines.length ? (white ? r.lines[0].cp : -r.lines[0].cp) : null;
+  const bar = $('evalBar');
+  bar.classList.toggle('flip', S.color === 'b');
+  if(cp != null){
+    bar.querySelector('i').style.height = (Math.abs(cp) >= 9000 ? (cp > 0 ? 100 : 0) : winPct(cp)) + '%';
+    const sp = bar.querySelector('span'); sp.textContent = evalLabel(cp).replace('+', ''); sp.className = cp >= 0 ? 'w' : 'b';
+  }
+  bar.classList.toggle('busy', cp == null);
+  const el = $('engLines');
+  if(note != null && note !== ''){ el.innerHTML = `<div class="eng-note">${esc(note)}</div>`; return; }
+  if(!r){ el.innerHTML = '<div class="eng-note">Stockfish is thinking…</div>'; return; }
+  // on your turn in training, keep the answer hidden until you ask for it
+  if(status === 'user' && !redo.length && engReveal !== fen){
+    el.innerHTML = '<button class="btn quiet eng-show">Show the best moves</button>';
+    el.querySelector('button').onclick = () => { engReveal = fen; drawEngine(fen, r); };
+    return;
+  }
+  el.innerHTML = r.lines.slice(0, 3).map(l => {
+    const v = white ? l.cp : -l.cp, sans = pvToSan(fen, l.pv, 8);
+    return `<div class="eng-line"><span class="eng-ev ${v >= 0 ? 'w' : 'b'}">${evalLabel(v)}</span><span class="eng-pv">${esc(fmtLine(fen, sans))}</span></div>`;
+  }).join('') + '<div class="eng-note">Stockfish, depth up to 14.</div>';
 }
 function renderName(){
   const el = $('opName');
@@ -463,7 +522,7 @@ function renderNav(){
   $('navBack').disabled = $('navFirst').disabled = !h;
   $('navFwd').disabled = $('navLast').disabled = !redo.length;
 }
-function renderAll(){ renderBoard(); renderMoves(); renderName(); renderStatus(); renderNav(); }
+function renderAll(){ renderBoard(); renderMoves(); renderName(); renderStatus(); renderNav(); renderEnginePanel(); }
 
 /* ================= surviving a reload ================= */
 // Phones often reload a page that was in the background, or after a pull-to-refresh. The line in progress is saved
@@ -514,6 +573,9 @@ function init(){
   $('navBack').onclick = navBack;
   $('navFwd').onclick = navForward;
   $('navFirst').onclick = () => { if(game && !$('train').hidden) navFirst(); };
+  $('navEngine').onclick = () => { showEngine = !showEngine; store.set('showEngine', showEngine); if(showEngine) Engine.init(); renderEnginePanel(); };
+  $('moves').addEventListener('click', e => { const m = e.target.closest('[data-ply]'); if(m) jumpTo(+m.dataset.ply); });
+  $('moves').addEventListener('keydown', e => { const m = e.target.closest('[data-ply]'); if(m && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); e.stopPropagation(); jumpTo(+m.dataset.ply); } });
   $('navLast').onclick = () => { if(game && !$('train').hidden) navLast(); };
   document.addEventListener('keydown', e => {
     if($('train').hidden || e.altKey || e.ctrlKey || e.metaKey) return;
