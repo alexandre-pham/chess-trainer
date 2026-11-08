@@ -194,8 +194,44 @@ function judgeBook(before, m){
   const all = bookMoves(before);
   const otherName = all[m.san] ? nameAfter(before, m.san, shortestLine(all[m.san])) : null;
   const info = {phase: 'book', before, move: m, cands: cands.map(c => ({san: c.san, label: nameAfter(before, c.san, c.line)})), otherName, engineState: Engine.available() ? 'running' : 'off'};
-  reject(info);
-  enrichMistake(info);
+  // a move outside the line you train is not a mistake if it is theory, if masters play it, if it scores as well
+  // at your level, or if Stockfish rates it as good as the line's move
+  status = 'checking'; lastFeedback = null; renderAll();
+  const sid = sessionId;
+  soundCheck(info).then(sound => {
+    if(sid !== sessionId || status !== 'checking') return;
+    if(sound){ info.sound = sound; acceptSound(info); explainMistake(info); }
+    else { reject(info); enrichMistake(info); }
+  }).catch(err => { console.error(err); if(sid === sessionId && status === 'checking'){ reject(info); enrichMistake(info); } });
+}
+const SOUND_LOSS = 25;   // centipawns: Stockfish 19 sees no real difference below this
+async function soundCheck(info){
+  const {before, move: m} = info, ref = info.cands[0].san, side = before.split(' ')[1];
+  if(info.otherName) return {why: 'theory'};
+  if(Explorer.enabled()){
+    const [ma, lv] = await Promise.all([Explorer.get(before, 'masters'), Explorer.get(before, 'lichess')]);
+    const mm = ma && ma.moves.find(x => x.san === m.san);
+    if(mm && mm.n >= 5 && mm.share >= 0.05) return {why: 'masters', n: mm.n, total: ma.total};
+    const lm = lv && lv.total >= 40 && lv.moves.find(x => x.san === m.san);
+    if(lm && lm.share >= 0.1){
+      const common = lv.moves.filter(x => x.share >= 0.1), best = Math.max(...common.map(x => scoreFor(x, side)));
+      if(scoreFor(lm, side) >= best - 0.03) return {why: 'level', share: lm.share, score: scoreFor(lm, side)};
+    }
+  }
+  await waitEngine();
+  if(!Engine.available()) return null;
+  const e = await engineCompare(before, m, ref);
+  if(!e) return null;
+  info.engine = e; info.verdict = verdictFor(e.loss); info.engineState = 'done';
+  return e.loss <= SOUND_LOSS ? {why: 'engine'} : null;
+}
+// a sound move outside your line: no mistake is counted, the position just comes back a little sooner
+function acceptSound(info){
+  userMarks[userMarks.length - 1] = 's'; redo = [];
+  const key = posKey(info.before);
+  if(failedHere !== key && cards[key]) grade(key, 'hard', cardCtx(info.before));
+  failedHere = key;   // playing the line's move next is not counted twice
+  wrongInfo = info; status = 'wrong'; renderAll();
 }
 async function judgeStats(before, m){
   const sid = sessionId, ex = await Explorer.get(before);
@@ -257,7 +293,8 @@ async function enrichMistake(info){
   }
   await waitEngine();
   if(sid !== sessionId || wrongInfo !== info) return;
-  if(Engine.available()){
+  if(info.engine){ info.engineState = 'done'; }
+  else if(Engine.available()){
     info.engineState = 'running'; renderStatus();
     const e = await engineCompare(info.before, info.move, info.cands[0].san);
     if(sid !== sessionId || wrongInfo !== info) return;
@@ -275,7 +312,7 @@ function showBest(){
   if(status !== 'wrong') return;
   const w = wrongInfo; game.undo(); userMarks.pop();
   const m = game.move(w.cands[0].san); userMarks.push('u');
-  arrowsList = [[m.from, m.to]]; wrongInfo = null; lastFeedback = {kind: 'shown', san: m.san}; failedHere = null;
+  arrowsList = [[m.from, m.to]]; wrongInfo = null; lastFeedback = {kind: w.sound ? 'shownLine' : 'shown', san: m.san}; failedHere = null;
   updateName(); nextTurn();
 }
 function keepMine(){
@@ -361,7 +398,7 @@ function renderMoves(){
     for(const x of [all[i], all[i + 1]]){
       if(!x){ s += '<span class="m empty"></span>'; continue; }
       const cls = ['m'];
-      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
+      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.mark === 's') cls.push('s'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
       s += `<span class="${cls.join(' ')}" data-ply="${x.ply}" role="button" tabindex="0">${esc(x.san)}</span>`;
     }
   }
@@ -451,7 +488,17 @@ function renderStatus(){
   const st = $('status'), ac = $('actions');
   let cls = 'status', title = '', body = '', acts = [];
   const tag = reviewing ? '<div class="review-tag">Review</div>' : '';
-  if(status === 'wrong' && wrongInfo){
+  if(status === 'wrong' && wrongInfo && wrongInfo.sound){
+    const w = wrongInfo, s = w.sound, e = w.engine, san = esc(w.move.san);
+    cls += ' sound'; title = 'Good move, but not your line: ' + san;
+    body = s.why === 'theory' ? `${san} is theory too: it leads to <em>${esc(w.otherName)}</em>.`
+      : s.why === 'masters' ? `Masters play ${san} here: ${s.n.toLocaleString()} of ${s.total.toLocaleString()} master games.`
+      : s.why === 'level' ? `Players at your level score ${pct(s.score)} with ${san}, as well as with the usual moves.`
+      : `Stockfish rates ${san} ${e.you >= e.book ? 'at least' : 'about'} as good as the line's move (${fmtEval(e.you)} against ${fmtEval(e.book)}).`;
+    body += ` It is not counted as a mistake. The line you are training continues with:<ul class="book-list">${w.cands.slice(0,4).map(candRow).join('')}</ul>`;
+    body += `<div id="insight" class="insight"></div>`;
+    acts = [["Play the line's move", retry, 'primary'], ['Show it', showBest]];
+  } else if(status === 'wrong' && wrongInfo){
     const w = wrongInfo, e = w.engine;
     const soft = w.phase === 'stats' ? w.rareButSound : (e ? e.loss < 110 : !!w.otherName);
     cls += soft ? ' warn' : ' bad';
@@ -514,6 +561,7 @@ function feedbackLine(){
   if(f.kind === 'engine') return ok(`${esc(f.san)} is a good move`) + ` (Stockfish ${fmtEval(f.ev)}).`;
   if(f.kind === 'unchecked') return `${esc(f.san)} could not be checked, so the game simply continues.`;
   if(f.kind === 'shown') return `The main move was <b>${esc(f.san)}</b>. This position will come back for review.`;
+  if(f.kind === 'shownLine') return `The line continues with <b>${esc(f.san)}</b>.`;
   if(f.kind === 'kept') return `You kept ${esc(f.san)}. It is sound, but the main move will be asked again later.`;
   return '';
 }

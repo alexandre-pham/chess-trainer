@@ -113,6 +113,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:none
 .mt .m.x{background:var(--bad-soft);color:var(--bad);text-decoration:line-through}
 .mt .m.cur{background:var(--accent);color:#fff}
 .mt .m.ahead{opacity:.45}
+.mt .m.s{color:var(--accent);text-decoration:underline dotted}
 .train{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:28px;align-items:start}
 .board-wrap{position:relative;width:100%;aspect-ratio:1;border-radius:6px;overflow:hidden;box-shadow:0 1px 0 var(--line),0 10px 30px -18px rgba(0,0,0,.5);touch-action:none;user-select:none;-webkit-user-select:none}
 .board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:100%;height:100%}
@@ -141,6 +142,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:none
 .status.good{background:var(--good-soft);border-color:transparent} .status.good .st-title{color:var(--good)}
 .status.warn{background:var(--warn-soft);border-color:transparent} .status.warn .st-title{color:var(--warn)}
 .status.bad{background:var(--bad-soft);border-color:transparent} .status.bad .st-title{color:var(--bad)}
+.status.sound{background:var(--accent-soft);border-color:transparent} .status.sound .st-title{color:var(--accent)}
 .status.done{background:var(--accent-soft);border-color:transparent} .status.done .st-title{color:var(--accent)}
 .book-list{margin:8px 0 0;padding:0;list-style:none}
 .book-list li{font-size:14px;padding:3px 0}

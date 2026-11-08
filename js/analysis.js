@@ -105,19 +105,19 @@ function analyseMistake({before, played, playedLine = [], best = null, bestLine 
   // 3. material along the engine line after the played move
   if(playedLine.length >= 2){
     const L = runLine(gA.fen(), playedLine, 6), net = (L.gain + (materialOf(gA) - materialOf(g0))) * sgn;
-    const line = fmtLine(gA.fen(), playedLine.slice(0, L.moves.length)), tw = tradeWords([mv, ...L.moves], mover);
-    if(net <= -1) out.push(`After ${played} ${line}, ${SIDE(mover)} ${tw.text || 'has lost ' + amount(-net)}.`);
-    else if(net >= 1) out.push(`${SIDE(mover)} ${tw.text || 'wins ' + amount(net)} after ${played} ${line}, but Stockfish still prefers the other move.`);
-    else if(evPlayed != null && evBest != null && (evBest - evPlayed) * sgn >= 45) out.push(`Material stays level after ${played} ${line}: the difference is about position and activity, not material.`);
+    const line = fmtLine(before, [played, ...playedLine.slice(0, L.moves.length)]), tw = tradeWords([mv, ...L.moves], mover);
+    if(net <= -1) out.push(`After ${line}, ${SIDE(mover)} ${tw.text || 'has lost ' + amount(-net)}.`);
+    else if(net >= 1) out.push(`${SIDE(mover)} ${tw.text || 'wins ' + amount(net)} after ${line}, but Stockfish still prefers the other move.`);
+    else if(evPlayed != null && evBest != null && (evBest - evPlayed) * sgn >= 45) out.push(`Material stays level after ${line}: the difference is about position and activity, not material.`);
   }
   // 4. material along the better line
   if(best && best !== played && bestLine.length){
     const gB = new Chess(before), bm = gB.move(best);
     if(bm){
       const L = runLine(gB.fen(), bestLine, 6), net = (L.gain + (materialOf(gB) - materialOf(g0))) * sgn;
-      const line = fmtLine(gB.fen(), bestLine.slice(0, L.moves.length)), tw = tradeWords([bm, ...L.moves], mover);
-      if(net >= 1) out.push(`With ${best} instead, ${SIDE(mover)} ${tw.text || 'wins ' + amount(net)}: ${fmtLine(before, [best])} ${line}.`);
-      else if(net <= -1) out.push(`${best} ${tw.text ? tw.text.replace(/^has lost/, 'gives up').replace(/^gives/, 'gives') : 'gives up ' + amount(-net)} for the initiative: ${fmtLine(before, [best])} ${line}.`);
+      const tw = tradeWords([bm, ...L.moves], mover);
+      if(net >= 1) out.push(`With ${best} instead, ${SIDE(mover)} ${tw.text || 'wins ' + amount(net)}: ${fmtLine(before, [best, ...bestLine.slice(0, L.moves.length)])}.`);
+      else if(net <= -1) out.push(`${best} ${tw.text ? tw.text.replace(/^has lost/, 'gives up').replace(/^gives/, 'gives') : 'gives up ' + amount(-net)} for the initiative: ${fmtLine(before, [best, ...bestLine.slice(0, L.moves.length)])}.`);
     }
   }
   // 5. pieces left loose by the move
