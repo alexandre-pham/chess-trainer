@@ -73,7 +73,8 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
 
 ## Credits and licences
 
-- Stockfish (stockfish.js 10 by Niklas Fiekas): GPL v3, see `vendor/stockfish-COPYING.txt`.
+- Stockfish 19 lite (stockfish.js by Nathan Rugg): GPL v3, see `vendor/stockfish-19-COPYING.txt`.
+  Fallback for browsers without WebAssembly: stockfish.js 10 by Niklas Fiekas, GPL v3, see `vendor/stockfish-COPYING.txt`.
   Because it includes Stockfish, this project is released under the GPL v3 (`LICENSE`).
 - chess.js 0.10.3 by Jeff Hlywa: BSD 2-Clause, see `vendor/chess.js-LICENSE.txt`.
 - Opening names and lines: [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings), CC0.
