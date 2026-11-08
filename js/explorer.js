@@ -7,12 +7,14 @@ const Explorer = {
   enabled(){ return !!S.token; },
   reset(){ this.cache.clear(); this.lastError = ''; },
   label(){ return S.exDb === 'masters' ? 'masters' : `Lichess players rated ${S.ratings[0]}–${S.ratings[S.ratings.length-1]}${S.ratings[S.ratings.length-1] === 2500 ? '+' : ''}`; },
-  async get(fen){
+  // db: 'masters' or 'lichess' (players of the chosen ratings); by default the one chosen in Settings
+  async get(fen, db){
     if(!this.enabled()) return null;
-    const key = S.exDb + S.ratings.join(',') + '|' + fen.split(' ').slice(0,4).join(' ');
+    db = db || S.exDb;
+    const key = db + S.ratings.join(',') + '|' + fen.split(' ').slice(0,4).join(' ');
     if(this.cache.has(key)) return this.cache.get(key);
     if(Date.now() < this.blockedUntil) return null;
-    const url = S.exDb === 'masters'
+    const url = db === 'masters'
       ? `https://explorer.lichess.ovh/masters?moves=15&topGames=0&fen=${encodeURIComponent(fen)}`
       : `https://explorer.lichess.ovh/lichess?variant=standard&speeds=blitz,rapid,classical&ratings=${S.ratings.join(',')}&moves=15&topGames=0&recentGames=0&fen=${encodeURIComponent(fen)}`;
     try{
