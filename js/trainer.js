@@ -397,7 +397,7 @@ function renderEnginePanel(){
   // the trainer's own checks come first: analyse once the board is waiting for a move
   if(!['user', 'browse', 'wrong', 'done'].includes(status) || engPending === fen) return;
   engPending = fen;
-  waitEngine().then(() => Engine.available() ? Engine.analyse(fen, 14, 3, 1500) : null).then(res => {
+  waitEngine().then(() => Engine.available() ? Engine.analyse(fen, 18, 3, 1500) : null).then(res => {
     if(engPending === fen) engPending = null;
     if(res) engCache.set(fen, res);
     if(game && game.fen() === fen) drawEngine(fen, res, null, res ? '' : 'Stockfish is not available.');
@@ -425,7 +425,7 @@ function drawEngine(fen, r, fixedCp, note){
   el.innerHTML = r.lines.slice(0, 3).map(l => {
     const v = white ? l.cp : -l.cp, sans = pvToSan(fen, l.pv, 8);
     return `<div class="eng-line"><span class="eng-ev ${v >= 0 ? 'w' : 'b'}">${evalLabel(v)}</span><span class="eng-pv">${esc(fmtLine(fen, sans))}</span></div>`;
-  }).join('') + '<div class="eng-note">Stockfish, depth up to 14.</div>';
+  }).join('') + '<div class="eng-note">Stockfish, about 1.5 seconds per position.</div>';
 }
 function renderName(){
   const el = $('opName');

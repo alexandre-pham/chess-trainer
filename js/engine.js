@@ -9,23 +9,34 @@ const Engine = {
   available(){ return this.state === 'ready'; },
   send(cmd){ if(this.mode === 'worker') this.w.postMessage(cmd); },
   onLine(line){
-    if(line === 'uciok' && this.state === 'loading'){ clearTimeout(this.timer); this.state = 'ready'; this.send('setoption name Hash value 16'); renderEngineNote(); }
+    if(line === 'uciok' && this.state === 'loading'){ clearTimeout(this.timer); this.state = 'ready'; this.send('setoption name Hash value 32'); renderEngineNote(); }
     if(this.handler) this.handler(line);
   },
+  // Stockfish 19 lite (WebAssembly, neural-network evaluation, single thread so it needs no special server setup).
+  // Browsers without WebAssembly, or where it fails to start, fall back to the old stockfish.js 10.
+  builds: [{file: '../vendor/stockfish-19-lite-single.js', name: 'Stockfish 19'}, {file: '../vendor/stockfish.js', name: 'Stockfish 10'}],
+  name: '',
   init(){
     if(this.state !== 'idle') return;
     this.state = 'loading';
-    try{
-      // Stockfish (stockfish.js 10, compiled to JavaScript) runs in a background worker
-      this.w = new Worker(new URL('../vendor/stockfish.js', import.meta.url));
-      this.mode = 'worker';
-      this.timer = setTimeout(() => { if(this.state === 'loading') this.fail(); }, 20000);
-      this.w.onmessage = e => this.onLine(typeof e.data === 'string' ? e.data : '');
-      this.w.onerror = () => { if(this.state === 'loading') this.fail(); };
-      this.w.postMessage('uci');
-    }catch(e){ this.fail(); }
+    this.start(typeof WebAssembly === 'object' ? 0 : 1);
   },
-  fail(){ clearTimeout(this.timer); this.state = 'failed'; this.mode = ''; try{ this.w && this.w.terminate(); }catch(e){} renderEngineNote(); },
+  start(i){
+    const b = this.builds[i];
+    try{
+      this.w = new Worker(new URL(b.file, import.meta.url));
+      this.mode = 'worker'; this.name = b.name;
+      this.timer = setTimeout(() => { if(this.state === 'loading') this.fail(i); }, 20000);
+      this.w.onmessage = e => this.onLine(typeof e.data === 'string' ? e.data : '');
+      this.w.onerror = () => { if(this.state === 'loading') this.fail(i); };
+      this.w.postMessage('uci');
+    }catch(e){ this.fail(i); }
+  },
+  fail(i){
+    clearTimeout(this.timer); try{ this.w && this.w.terminate(); }catch(e){}
+    if(i != null && i + 1 < this.builds.length){ this.start(i + 1); return; }
+    this.state = 'failed'; this.mode = ''; renderEngineNote();
+  },
   analyse(fen, depth, multipv, movetime){
     multipv = multipv || 1; movetime = movetime || 4000;
     const run = () => new Promise(resolve => {
@@ -52,7 +63,7 @@ async function waitEngine(){ for(let i=0;i<80 && Engine.state === 'loading';i++)
 const uciMove = (g, u) => g.move({from: u.slice(0,2), to: u.slice(2,4), promotion: u[4]});
 function renderEngineNote(){
   const parts = [];
-  if(Engine.state === 'ready') parts.push('Stockfish is ready' + (Engine.mode === 'inline' ? ' (running in the page, it may pause briefly while thinking).' : '.'));
+  if(Engine.state === 'ready') parts.push(`${Engine.name || 'Stockfish'} is ready.`);
   else if(Engine.state === 'failed') parts.push('Stockfish could not start in this browser.');
   else parts.push('Loading Stockfish…');
   parts.push(Explorer.enabled() ? `Statistics: ${Explorer.label()}.` : 'Statistics are off (no Lichess token).');
