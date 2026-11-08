@@ -24,7 +24,7 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Squares**: coordinate exercises on real positions, with speed rounds, and
   playing famous games or great players' games from their written moves.
 - **Progress**: time per day and activity, calendar, streaks, accuracy per opening.
-- **Accounts**: sign in with an email and a password (Firebase) to keep your progress on all
+- **Accounts**: sign in with Google or with an email and a password (Firebase) to keep your progress on all
   your devices. Without an account, progress stays in the browser.
 
 ## Run it locally
@@ -90,7 +90,8 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
 The app is static files; Firebase hosts them and provides sign-in and storage (free Spark plan).
 
 1. In the [Firebase console](https://console.firebase.google.com), create a project.
-2. **Authentication** > Get started > **Email/Password** > enable.
+2. **Authentication** > Get started > enable **Google** and **Email/Password**. If the app is also
+   served from another address (GitHub Pages), add it under Authentication > Settings > Authorized domains.
 3. **Firestore Database** > Create database (production mode).
 4. **Project settings** > Your apps > add a **Web app**, copy its config into `js/firebase-config.js`.
 5. Deploy the site and the security rules:

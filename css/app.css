@@ -442,3 +442,4 @@ header .nav-item[hidden]{display:inline-block !important}
 .r-lplayed{flex:none;font-size:11.5px;font-weight:600;color:var(--good)}
 .r-lnote{padding:8px 12px;font-size:13px;color:var(--muted)}
 .insight:empty{display:none}
+#syncBox .ac-or{font-size:13px;color:var(--muted);margin:10px 0 2px}
