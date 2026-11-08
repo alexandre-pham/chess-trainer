@@ -60,7 +60,10 @@ const AUTH_ERRORS = {
   'auth/network-request-failed': 'No connection. Check your internet and try again.',
   'auth/operation-not-allowed': 'Email sign-in is not turned on in the Firebase project.',
   'permission-denied': 'The database refused access. Check the Firestore security rules.',
-  'unavailable': 'No connection. Your progress is kept here and will sync later.'
+  'unavailable': 'No connection. Your progress is kept here and will sync later.',
+  'auth/popup-blocked': 'The browser blocked the Google window. Allow pop-ups for this site and try again.',
+  'auth/unauthorized-domain': 'Google sign-in is not allowed on this address yet: add it under Authentication > Settings > Authorized domains in the Firebase console.',
+  'auth/account-exists-with-different-credential': 'This email already has an account with a password. Sign in with your password instead.'
 };
 const errText = e => AUTH_ERRORS[e && e.code] || (e && e.message) || 'Something went wrong.';
 
@@ -91,6 +94,13 @@ const Sync = window.Sync = {
   },
   signIn(email, pw){ return this.run(() => A.signInWithEmailAndPassword(auth, email, pw)); },
   signUp(email, pw){ return this.run(() => A.createUserWithEmailAndPassword(auth, email, pw)); },
+  // Google sign-in opens a small Google window; closing it is not an error
+  signInGoogle(){
+    return this.run(async () => {
+      try{ await A.signInWithPopup(auth, new A.GoogleAuthProvider()); }
+      catch(e){ if(e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) return; throw e; }
+    });
+  },
   resetPassword(email){
     if(!email){ this.state = 'error'; this.error = 'Enter your email above, then tap "Forgot password?" again.'; renderSync(); return; }
     return this.run(async () => { await A.sendPasswordResetEmail(auth, email); this.notice = `If an account exists for ${email}, a reset link is on its way. Check your spam folder too.`; });
@@ -159,7 +169,9 @@ function renderSync(){
   }
   const keep = id => ($(id) || {}).value || '';
   const email = keep('acEmail'), pw = keep('acPw');
-  el.innerHTML = `<input type="email" id="acEmail" placeholder="Email" autocomplete="username" ${working ? 'disabled' : ''}>
+  el.innerHTML = `<button class="btn" id="acGoogle" ${working ? 'disabled' : ''}>Continue with Google</button>
+    <div class="ac-or">or with an email and a password</div>
+    <input type="email" id="acEmail" placeholder="Email" autocomplete="username" ${working ? 'disabled' : ''}>
     <input type="password" id="acPw" placeholder="Password (6 characters or more)" autocomplete="current-password" ${working ? 'disabled' : ''}>
     <div class="inline"><button class="btn" id="acIn" ${working ? 'disabled' : ''}>${working ? 'Please wait…' : 'Sign in'}</button><button class="btn quiet" id="acUp" ${working ? 'disabled' : ''}>Create account</button><button class="btn quiet" id="acReset" ${working ? 'disabled' : ''}>Forgot password?</button></div>
     <div class="conn ${Sync.state === 'error' ? 'err' : ''}">${esc(Sync.state === 'error' ? Sync.error : Sync.notice)}</div>
@@ -169,6 +181,7 @@ function renderSync(){
   $('acIn').onclick = () => { const [e, p] = vals(); Sync.signIn(e, p); };
   $('acUp').onclick = () => { const [e, p] = vals(); Sync.signUp(e, p); };
   $('acReset').onclick = () => Sync.resetPassword(vals()[0]);
+  $('acGoogle').onclick = () => Sync.signInGoogle();
   $('acPw').onkeydown = ev => { if(ev.key === 'Enter') $('acIn').click(); };
 }
 
