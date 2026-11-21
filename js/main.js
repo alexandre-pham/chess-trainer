@@ -34,7 +34,6 @@ function start(){
     else $('toSetup').onclick();
   };
   $('pgEmptyGo').onclick = () => openToday();
-  showPage('setup', false);
   renderColor();
   renderSetup();
   renderExplorerChoices();
@@ -44,6 +43,7 @@ function start(){
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   renderSync();
   syncStats();
+  openToday();
   // back to the line in progress if the page was reloaded during training
   restoreSession();
 }

@@ -8,6 +8,7 @@ import { Explorer } from './explorer.js';
 import { coordLog, coordRounds } from './squares.js';
 import { Daily } from './daily.js';
 import { timeLog } from './progress.js';
+import { showPage } from './nav.js';
 
 /* --- connection settings --- */
 /* --- Lichess sign-in (OAuth 2 with PKCE: you log in on lichess.org, this page never sees your password) --- */
@@ -105,7 +106,7 @@ function init(){
     const code = q.get('code'), state = q.get('state'), error = q.get('error');
     history.replaceState(null, '', location.pathname);
     setTimeout(async () => {
-      $('lichessAuth').scrollIntoView({block: 'center'});
+      showPage('settings'); $('lichessAuth').scrollIntoView({block: 'center'});
       if(error){ store.set('pkce', null); $('exConn').className = 'conn err'; $('exConn').textContent = 'Sign-in was cancelled on Lichess.'; return; }
       $('exConn').className = 'conn'; $('exConn').textContent = 'Finishing the connection…';
       await finishLogin(code, state);

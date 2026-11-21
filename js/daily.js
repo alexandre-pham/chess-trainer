@@ -61,7 +61,7 @@ const Daily = {
 };
 function stepLabel(s){ return `${s.done} of ${s.target} ${s.unit}${s.target > 1 ? 's' : ''}`; }
 function renderToday(){
-  if(!S.sel.length){ $('tdPlan').innerHTML = '<div class="pg-panel"><p style="margin:0">Choose an opening first: the plan is built around it.</p><div class="inline" style="margin-top:10px"><button class="btn primary" id="tdPick">Choose an opening</button></div></div>'; $('tdPick').onclick = () => $('toSetup').click(); $('tdHead').textContent = ''; return; }
+  if(!S.sel.length){ $('tdPlan').innerHTML = '<div class="pg-panel"><p style="margin:0">Pick the opening you want to learn. The trainer plays the other side with the moves real players choose, explains your mistakes, and brings back the positions you miss. Your daily plan is built around that opening.</p><div class="inline" style="margin-top:10px"><button class="btn primary" id="tdPick">Choose an opening</button></div></div>'; $('tdPick').onclick = () => $('toSetup').click(); $('tdHead').textContent = ''; return; }
   const plan = Daily.ensure(), streak = Daily.streak();
   const mins = `About ${Daily.budget} minutes.`;
   $('tdHead').innerHTML = `${esc(S.sel[0])}, as ${S.color === 'w' ? 'White' : 'Black'}. ${mins} ${streak ? `<b>${streak}-day streak.</b>` : ''}`;

@@ -72,22 +72,6 @@ function renderTime(){
   $('tmCal').querySelectorAll('[data-day]').forEach(b => b.onclick = () => { calPick = calPick === b.dataset.day ? null : b.dataset.day; renderTime(); });
   const pick = calPick || today, pt = dayTotals(pick);
   $('tmDay').innerHTML = `<b>${fmtDay(pick)}${pick === today ? ' (today)' : ''}:</b> ${sumSec(pt) ? Object.keys(ACTS).filter(a => pt[a]).map(a => `<span class="tm-chip"><i style="background:${ACTS[a][1]}"></i>${ACTS[a][0]} ${fmtMin(pt[a])}</span>`).join(' ') : 'no practice recorded.'}${plans.has(pick) ? ' <span class="tm-chip">✓ Daily plan completed</span>' : ''}`;
-  // last 14 days, stacked by activity
-  const W = 760, H = 180, L = 40, B = 24, list = []; for(let i = 13; i >= 0; i--) list.push(addDays(today, -i));
-  const tots = list.map(dayTotals), max = Math.max(1200, ...tots.map(sumSec)), bw = (W - L) / 14;
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Minutes per day, last 14 days">`;
-  for(const g of [0, .5, 1]){ const yy = 8 + (H - 8 - B) * (1 - g); svg += `<line x1="${L}" x2="${W}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text class="axis" x="${L - 6}" y="${yy + 4}" text-anchor="end">${Math.round(max * g / 60)}′</text>`; }
-  list.forEach((k, i) => {
-    let yb = H - B; const x = L + i * bw + bw * .18, w = bw * .64;
-    Object.keys(ACTS).forEach(a => { const s = tots[i][a] || 0; if(!s) return; const h = (H - 8 - B) * s / max; yb -= h; svg += `<rect x="${x}" y="${yb}" width="${w}" height="${h}" fill="${ACTS[a][1]}"><title>${fmtDay(k)}: ${ACTS[a][0]} ${fmtMin(s)}</title></rect>`; });
-    svg += `<text class="axis" x="${x + w / 2}" y="${H - 8}" text-anchor="middle">${new Date(k + 'T12:00').toLocaleDateString(undefined, {weekday: 'narrow'})}</text>`;
-  });
-  $('tmChart').innerHTML = svg + '</svg>';
-  // where the time went, last 30 days
-  const t30 = {}; for(let i = 0; i < 30; i++){ const t = dayTotals(addDays(today, -i)); for(const [a, s] of Object.entries(t)) t30[a] = (t30[a] || 0) + s; }
-  const tot30 = sumSec(t30);
-  $('tmSplit').innerHTML = tot30 ? '<div class="tm-bar">' + Object.keys(ACTS).filter(a => t30[a]).map(a => `<span style="width:${t30[a] / tot30 * 100}%;background:${ACTS[a][1]}" title="${ACTS[a][0]}"></span>`).join('') + '</div><div class="tm-legend">' +
-    Object.keys(ACTS).filter(a => t30[a]).map(a => `<span class="tm-chip"><i style="background:${ACTS[a][1]}"></i>${ACTS[a][0]}: ${fmtMin(t30[a])} (${Math.round(t30[a] / tot30 * 100)}%)</span>`).join(' ') + '</div>' : '<p class="help" style="color:var(--muted);margin:0">Nothing recorded in the last 30 days yet.</p>';
   const has = moveLog.length + coordLog.length > 0; $('pgEmpty').hidden = has; $('tmSum').hidden = !has;
 }
 
