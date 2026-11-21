@@ -732,7 +732,7 @@ function renderStatus(){
     body = `${esc(p.san)} is a common mistake at your level: it is played in ${pct(p.share)} of games here, and players who meet it score ${pct(p.score)} instead of ${pct(p.usual)}. Stockfish: you are now ${fmtEval(p.best)}. Find the move that punishes it.`;
     acts = [['Hint', toggleHint], ['Explain the last move', explainLast], ['Restart line', startLine], ['End here', endHere]];
   } else {
-    title = reviewing ? 'Find the move you missed before' : redo.length ? `Your move, replaying from move ${moveNo()}` : 'Your move';
+    title = reviewing ? (cards[reviewing] && cards[reviewing].lapses ? 'Find the move you missed before' : 'Review: find your move') : redo.length ? `Your move, replaying from move ${moveNo()}` : 'Your move';
     body = redo.length ? `Play a move to continue from here. It is judged as usual, and the later moves are replaced. Use ▶ to step forward instead.<br>${phaseNote()}`
       : [feedbackLine(), phaseNote()].filter(Boolean).join('<br>') || (game.history().length ? '' : 'Play the first move of your opening.');
     acts = [['Hint', toggleHint]];

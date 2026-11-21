@@ -67,8 +67,9 @@ test('repertoireExit: you left the book', () => {
 });
 
 test('repertoireExit: your opponent left the book', () => {
-  const {verdict} = repertoireExit('e4 e5 Nf3 d6'.split(' '), 'w', cand, Chess);
+  const {verdict} = repertoireExit('e4 e5 Nf3 d6 d4'.split(' '), 'w', cand, Chess);
   assert.deepEqual([verdict.kind, verdict.ply, verdict.played], ['opp', 3, 'd6']);
+  assert.deepEqual([verdict.path, verdict.reply], [['e4', 'e5', 'Nf3', 'd6'], 'd4']);
 });
 
 test('repertoireExit: the opponent avoided the opening on move one', () => {

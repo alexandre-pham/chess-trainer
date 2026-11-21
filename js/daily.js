@@ -213,17 +213,18 @@ async function checkGames(){
       const v = r.verdict;
       const what = v.kind === 'you' ? `You played <b>${r.mv(v.ply)} ${esc(v.played)}</b>; the book continues ${v.best.map(esc).join(', ')}.`
         : v.kind === 'sound' ? `You played ${r.mv(v.ply)} ${esc(v.played)}, outside your named lines but sound: ${soundWhy(v.sound, esc(v.played))}`
-        : v.kind === 'opp' ? `Your opponent left the book with ${r.mv(v.ply)} ${esc(v.played)}. You were on track until then.`
+        : v.kind === 'opp' ? `Your opponent left the book with ${r.mv(v.ply)} ${esc(v.played)}. You were on track until then${v.reply ? `, and replied ${r.mv(v.ply + 1)} ${esc(v.reply)}` : ''}.`
         : v.kind === 'short' ? 'The game ended while you were still in the book.' : `You followed the book until it ended at move ${Math.floor(v.ply / 2) + 1}.`;
-      return `<li><div><div class="hm">${link(r.gm, r.oppName)}, ${kindOf(r.gm)}, ${dateOf(r.gm)}${where(r.gm)}</div><div class="hs" style="font-size:13.5px;color:var(--ink)">${what}</div></div><div class="inline" style="flex:none"><a class="btn primary" href="${esc(r.gm.analyse)}" target="_blank" rel="noopener">Analyse on ${r.gm.site}</a>${v.kind === 'you' ? `<button class="btn" data-fix="${i}">Practise</button>` : ''}</div></li>`;
+      return `<li><div><div class="hm">${link(r.gm, r.oppName)}, ${kindOf(r.gm)}, ${dateOf(r.gm)}${where(r.gm)}</div><div class="hs" style="font-size:13.5px;color:var(--ink)">${what}</div></div><div class="inline" style="flex:none"><a class="btn primary" href="${esc(r.gm.analyse)}" target="_blank" rel="noopener">Analyse on ${r.gm.site}</a>${v.kind === 'you' ? `<button class="btn" data-fix="${i}">Practise</button>` : v.kind === 'opp' ? `<button class="btn" data-fix="${i}">Practise your reply</button>` : ''}</div></li>`;
     }).join('') + '</ul>' + otherHtml + note;
     out.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => {
-      const v = rows[+b.dataset.fix].verdict, key = posKey(v.fen);
-      // make it a review card that is due now, then practise it
-      const g = new Chess(); v.path.forEach(m => g.move(m)); let name = ''; const gg = new Chess();
-      for(const m of v.path){ gg.move(m); const p = POS[posKey(gg.fen())]; if(p && p[1]) name = LINES[p[0]][1]; }
-      if(!cards[key]) cards[key] = {path: v.path, color: S.color, fams: [...selFamilies()], name, ease: 2.5, ivl: 0, reps: 0, lapses: 1, due: 0, seen: Date.now()};
-      else { cards[key].due = 0; cards[key].lapses = Math.max(1, cards[key].lapses); }
+      // make it a review card that is due now, then practise it: your move there, or your reply to the opponent's new move
+      const v = rows[+b.dataset.fix].verdict, mine = v.kind === 'you';
+      const g = new Chess(); let name = '';
+      for(const m of v.path){ g.move(m); const p = POS[posKey(g.fen())]; if(p && p[1]) name = LINES[p[0]][1]; }
+      const key = posKey(g.fen());
+      if(!cards[key]) cards[key] = {path: v.path, color: S.color, fams: [...selFamilies()], name, ease: 2.5, ivl: 0, reps: 0, lapses: mine ? 1 : 0, due: 0, seen: Date.now()};
+      else { cards[key].due = 0; if(mine) cards[key].lapses = Math.max(1, cards[key].lapses); }
       saveCards(); Daily.count('games'); Daily.active = null; enterTraining(); startReviewKey(key);
     });
   }catch(e){ out.textContent = (e && e.message) || 'Could not load your games.'; }

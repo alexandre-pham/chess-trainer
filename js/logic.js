@@ -61,7 +61,7 @@ function repertoireExit(sans, color, candidates, Chess, maxPlies = 40){
     const mine = g.turn() === color, played = sans[i];
     if(!c.some(x => x.san === played)){
       if(!mine && !oppIn){ outAt = {ply: i, played}; break; }   // the opponent avoided your opening right away
-      verdict = mine ? {kind: 'you', ply: i, fen, played, best: c.slice(0, 3).map(x => x.san), path: sans.slice(0, i)} : {kind: 'opp', ply: i, played};
+      verdict = mine ? {kind: 'you', ply: i, fen, played, best: c.slice(0, 3).map(x => x.san), path: sans.slice(0, i)} : {kind: 'opp', ply: i, played, path: sans.slice(0, i + 1), reply: sans[i + 1]};
       break;
     }
     if(mine) entered = true; else oppIn = true;
