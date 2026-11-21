@@ -106,7 +106,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:none
 .evalbar span.w{bottom:3px;color:#333} .evalbar span.b{top:3px;color:#ddd}
 .evalbar.flip span.w{bottom:auto;top:3px} .evalbar.flip span.b{top:auto;bottom:3px}
 .eng-toggle[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
-.eng-lines{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
+.eng-lines{margin:0 0 18px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
 .eng-line{display:flex;gap:10px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--line)}
 .eng-line:last-of-type{border-bottom:0}
 .eng-ev{flex:none;min-width:3.6em;text-align:center;font-weight:700;font-size:13px;border-radius:4px;padding:1px 4px}
@@ -175,6 +175,18 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;flex:none
   .wrap{padding:14px 14px 32px}
   .fams{max-height:380px}
 }
+.td-hero{display:flex;justify-content:space-between;align-items:center;gap:16px 28px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px 26px;margin-bottom:26px}
+.td-hero-main{flex:1 1 320px;min-width:0}
+.td-hero .pg-h{margin:2px 0 6px}
+.td-hero .td-head{margin:0}
+.td-eyebrow{font-size:13px;font-weight:600;color:var(--muted)}
+.btn.big{font-size:16px;padding:13px 24px;border-radius:10px}
+.td-plan-h{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+.td-plan-h h2{font-family:var(--serif);font-weight:500;font-size:22px;margin:0}
+.td-list .td-step{padding:12px 16px;margin-bottom:8px}
+.td-list .td-title{font-size:17px}
+.td-list .td-count{margin-left:10px;font-family:var(--sans);font-size:12.5px;white-space:nowrap}
+.td-list .td-why{margin-top:4px}
 @media (pointer:coarse){.nav-hint{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none !important}}
 
@@ -251,7 +263,6 @@ select.big{width:100%;font-family:var(--serif);font-size:18px;padding:10px 12px;
 .td-title{font-family:var(--serif);font-size:19px}
 .td-why{font-size:13.5px;color:var(--muted);margin:2px 0}
 .td-count{font-size:12.5px;font-weight:600;color:var(--accent)}
-.td-done{margin-top:6px}
 .td-moves{font-family:var(--serif);font-size:16px;color:var(--muted);margin-bottom:10px}
 .td-games{margin:0;padding-left:18px} .td-games li{margin:3px 0}
 #tdExtra a,.hard a{color:var(--accent)}
@@ -391,7 +402,8 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
   .wrap{max-width:none}
   .wrap > section:not(#train):not(#coords){max-width:1152px;margin-left:auto;margin-right:auto}
   .wrap:has(> #train:not([hidden])) header.top,.wrap:has(> #coords:not([hidden])) header.top{margin-bottom:16px}
-  #train.train{--bd:min(calc(100vh - 150px),calc(100vw - 440px));grid-template-columns:calc(var(--bd) + 26px) minmax(320px,520px);justify-content:center}
+  .wrap:has(> #train:not([hidden])){padding-bottom:12px}
+  #train.train{--bd:min(calc(100vh - 160px),calc(100vw - 440px));grid-template-columns:calc(var(--bd) + 26px) minmax(320px,520px);justify-content:center}
   #coords .c-train{--bd:min(calc(100vh - 330px),calc(100vw - 420px));grid-template-columns:var(--bd) minmax(320px,520px);justify-content:center}
   #coords > .pg-h,#coords > .lede,#coords > .c-top{max-width:calc(var(--bd,600px) + 560px);margin-left:auto;margin-right:auto}
 }
@@ -410,7 +422,7 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
   .train .panel{display:flex;flex-direction:column}
   .train .panel > .daybar{order:-3}
   .train .panel > .status,.train .panel > .c-prompt{order:-2}
-  .train .panel > .actions{order:-1}
+  .train .panel > .actions,.train .panel > .eng-lines{order:-1}
   #coords > .lede{display:none}
   .setup{grid-template-columns:minmax(0,1fr)}
   .side .row{flex-wrap:wrap}
@@ -418,8 +430,8 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
 @media (max-width:520px){
   .nav-item{padding:12px 8px 10px;font-size:13.5px}
   .mainnav{justify-content:space-between}
-  .td-step{display:grid;grid-template-columns:32px minmax(0,1fr);gap:6px 12px}
-  .td-step > div:last-child{grid-column:2}
+  .td-hero{padding:18px}
+  .td-hero-go,.td-hero-go .btn{width:100%}
   #coords > .pg-h{display:none}
   #coords > .c-top{gap:12px;margin-top:12px}
   #coords .seg button{padding:7px 10px}

@@ -70,7 +70,7 @@
         </div>
         <div class="field">
           <label class="field-label" for="maxMove">Until move</label>
-          <select id="maxMove"><option>10</option><option>12</option><option>15</option><option>20</option><option>25</option></select>
+          <select id="maxMove"><option>10</option><option>12</option><option>15</option><option>20</option><option>25</option><option value="0">End of the game</option></select>
         </div>
       </div>
       <button class="btn primary" id="start" disabled>Start training</button>
@@ -134,7 +134,6 @@
         <button class="btn eng-toggle" id="navEngine" aria-pressed="false" title="Evaluation bar and Stockfish's best moves">Engine</button>
         <span class="nav-hint">or the ← → keys. Right-click and drag to draw arrows; Shift or Alt changes the colour.</span>
       </div>
-      <div class="eng-lines" id="engLines" hidden></div>
     </div>
     <div class="panel">
       <div class="daybar" hidden></div>
@@ -144,6 +143,7 @@
       <div class="moves" id="moves"></div>
       <div class="status" id="status"></div>
       <div class="actions" id="actions"></div>
+      <div class="eng-lines" id="engLines" hidden></div>
       <div class="stats">
         <div title="Moves you found on the first try in this session"><b id="sGood">0</b>correct moves</div>
         <div title="Moves you got wrong in this session"><b id="sBad">0</b>mistakes</div>
@@ -155,14 +155,12 @@
   </section>
   <!-- TODAY -->
   <section id="today" hidden>
-    <div class="td-top">
-      <div>
-        <h1 class="pg-h">Today's practice</h1>
-        <p class="td-head" id="tdHead"></p>
-      </div>
+    <div class="td-hero" id="tdHero"></div>
+    <div class="td-plan-h" id="tdPlanH">
+      <h2>Today's plan</h2>
       <div class="seg" role="group" aria-label="Time today" id="tdBudget"></div>
     </div>
-    <div id="tdPlan"></div>
+    <div id="tdPlan" class="td-list"></div>
     <div class="pg-panel td-week">
       <div class="td-week-h"><b>Last 14 days</b><span>Highlighted days: you practised. Today is outlined.</span></div>
       <div class="td-days" id="tdDays" aria-label="Last two weeks"></div>

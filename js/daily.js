@@ -8,7 +8,7 @@ import { Sync } from './sync.js';
 import { Explorer } from './explorer.js';
 import { renderInsight, wikiQuick } from './explain.js';
 import { fmtEval } from './engine.js';
-import { enterTraining, soundMove, startLine, startReview, startReviewKey } from './trainer.js';
+import { enterTraining, lineInProgress, soundMove, startLine, startReview, startReviewKey } from './trainer.js';
 import { fmtMoves, openCoords } from './squares.js';
 import { showPage } from './nav.js';
 import { dayKey, fmtDay } from './progress.js';
@@ -63,22 +63,37 @@ const Daily = {
 };
 function stepLabel(s){ return `${s.done} of ${s.target} ${s.unit}${s.target > 1 ? 's' : ''}`; }
 function renderToday(){
-  if(!S.sel.length){ $('tdPlan').innerHTML = '<div class="pg-panel"><p style="margin:0">Pick the opening you want to learn. The trainer plays the other side with the moves real players choose, explains your mistakes, and brings back the positions you miss. Your daily plan is built around that opening.</p><div class="inline" style="margin-top:10px"><button class="btn primary" id="tdPick">Choose an opening</button></div></div>'; $('tdPick').onclick = () => $('toSetup').click(); $('tdHead').textContent = ''; return; }
-  const plan = Daily.ensure(), streak = Daily.streak();
-  const mins = `About ${Daily.budget} minutes.`;
-  $('tdHead').innerHTML = `${esc(S.sel[0])}, as ${S.color === 'w' ? 'White' : 'Black'}. ${mins} ${streak ? `<b>${streak}-day streak.</b>` : ''}`;
-  $('tdBudget').innerHTML = [10, 20, 30].map(m => `<button data-bud="${m}" aria-pressed="${Daily.budget === m}">${m} min</button>`).join('');
-  $('tdBudget').querySelectorAll('[data-bud]').forEach(b => b.onclick = () => { Daily.budget = +b.dataset.bud; store.set('dailyBudget', Daily.budget); renderToday(); });
-  const firstOpen = plan.steps.find(s => s.done < s.target);
-  $('tdPlan').innerHTML = plan.steps.map((s, i) => {
-    const done = s.done >= s.target;
-    return `<div class="td-step ${done ? 'is-done' : ''} ${s === firstOpen ? 'is-next' : ''}">
-      <div class="td-num">${done ? '✓' : i + 1}</div>
-      <div class="td-body"><div class="td-title">${esc(s.title)}</div><div class="td-why">${esc(s.why)}</div><div class="td-count">${stepLabel(s)}</div></div>
-      <div><button class="btn ${s === firstOpen ? 'primary' : ''}" data-step="${s.id}">${done ? 'Again' : s.done ? 'Continue' : 'Start'}</button></div>
-    </div>`;
-  }).join('') + (firstOpen ? '' : '<div class="pg-panel td-done"><b>Today\'s practice is complete.</b> Come back tomorrow to keep your streak going.</div>');
-  $('tdPlan').querySelectorAll('[data-step]').forEach(b => b.onclick = () => runStep(b.dataset.step));
+  const hero = $('tdHero');
+  // first visit: what the app does, and one button
+  if(!S.sel.length){
+    hero.innerHTML = `<div class="td-hero-main"><h1 class="pg-h">Learn your openings</h1><p class="td-head">Pick the opening you want to learn. The trainer plays the other side with the moves real players choose, explains your mistakes, and brings back the positions you miss.</p></div>
+      <div class="td-hero-go"><button class="btn primary big" id="tdGo">Pick your opening</button></div>`;
+    $('tdGo').onclick = () => $('toSetup').click();
+    $('tdPlanH').hidden = $('tdPlan').hidden = true;
+  } else {
+    $('tdPlanH').hidden = $('tdPlan').hidden = false;
+    const plan = Daily.ensure(), streak = Daily.streak(), next = plan.steps.find(s => s.done < s.target), live = lineInProgress();
+    // the one obvious next thing: the line you left, the next step of the plan, or another line
+    const [head, label, sub, go] = live ? ['Welcome back', 'Continue your line', 'You were in the middle of a line.', () => $('toTrain').click()]
+      : next ? ["Today's practice", 'Next: ' + next.title, stepLabel(next) + ` done. About ${Daily.budget} minutes in all.`, () => runStep(next.id)]
+      : ['Done for today', 'Play another line', 'Today\'s plan is complete. Come back tomorrow to keep your streak going.', () => { enterTraining(); startLine(); }];
+    hero.innerHTML = `<div class="td-hero-main"><div class="td-eyebrow">${esc(S.sel[0])}, as ${S.color === 'w' ? 'White' : 'Black'}${S.opp ? `, against the ${esc(S.opp)}` : ''}</div>
+      <h1 class="pg-h">${head}</h1><p class="td-head">${streak ? `<b>${streak}-day streak.</b> ` : ''}${esc(sub)}</p></div>
+      <div class="td-hero-go"><button class="btn primary big" id="tdGo">${esc(label)}</button></div>`;
+    $('tdGo').onclick = go;
+    $('tdBudget').innerHTML = [10, 20, 30].map(m => `<button data-bud="${m}" aria-pressed="${Daily.budget === m}">${m} min</button>`).join('');
+    $('tdBudget').querySelectorAll('[data-bud]').forEach(b => b.onclick = () => { Daily.budget = +b.dataset.bud; store.set('dailyBudget', Daily.budget); renderToday(); });
+    // one line per step; only the next step explains itself
+    $('tdPlan').innerHTML = plan.steps.map((s, i) => {
+      const done = s.done >= s.target;
+      return `<div class="td-step ${done ? 'is-done' : ''} ${s === next ? 'is-next' : ''}">
+        <div class="td-num">${done ? '✓' : i + 1}</div>
+        <div class="td-body"><div class="td-title">${esc(s.title)}<span class="td-count">${stepLabel(s)}</span></div>${s === next ? `<div class="td-why">${esc(s.why)}</div>` : ''}</div>
+        <div><button class="btn" data-step="${s.id}">${done ? 'Again' : s.done ? 'Continue' : 'Start'}</button></div>
+      </div>`;
+    }).join('');
+    $('tdPlan').querySelectorAll('[data-step]').forEach(b => b.onclick = () => runStep(b.dataset.step));
+  }
   // last two weeks
   const set = new Set(Daily.days), cells = [];
   for(let i = 13; i >= 0; i--){ const d = new Date(); d.setDate(d.getDate() - i); const k = dayKey(d.getTime()); cells.push(`<span class="td-day ${set.has(k) ? 'on' : ''}" title="${fmtDay(k)}">${d.toLocaleDateString(undefined, {weekday: 'narrow'})}</span>`); }

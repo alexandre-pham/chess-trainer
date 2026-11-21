@@ -18,6 +18,8 @@ let lastFeedback = null, explainInfo = null, nameFresh = false, reviewing = null
 let punish = null, punishDone = null;
 // playing out a wrong move against Stockfish: {ply of the wrong move, its wrongInfo, your eval}
 let sandbox = null;
+// keep playing past the move limit, to the end of the game
+let playOn = false;
 const userMarks = [];
 const stats = {good:0, bad:0};
 const files = 'abcdefgh';
@@ -28,7 +30,7 @@ function resetLine(){
   sessionId++; redo = [];
   game = new Chess(); phase = 'book'; phaseEndName = null; userMarks.length = 0; lastFeedback = null; explainInfo = null;
   lastNamed = null; wrongInfo = null; selectedSq = null; hintOn = false; arrowsList = []; failedHere = null; reviewing = null;
-  punish = null; punishDone = null; sandbox = null;
+  punish = null; punishDone = null; sandbox = null; playOn = false;
 }
 function startLine(){ resetLine(); updateName(); renderAll(); nextTurn(); }
 function startReview(){
@@ -96,14 +98,14 @@ async function nextTurn(){
     phaseEndName = lastNamed;
     phase = Explorer.enabled() ? 'stats' : 'engine';
   }
-  if(phase !== 'book' && moveNo() > S.maxMove){ finish(); return; }
+  if(phase !== 'book' && S.maxMove && !playOn && moveNo() > S.maxMove){ finish(); return; }
   if(phase === 'stats'){
     status = 'loading'; renderStatus();
     const ex = await Explorer.get(fen);
     if(sid !== sessionId || game.fen() !== fen) return;
     if(!ex || ex.total < minGames() || !ex.moves.length){ phase = 'engine'; statsEnd = {name: lastNamed, total: ex ? ex.total : 0, failed: !ex}; }
   }
-  if(phase === 'engine' && (!S.useEngine || Engine.state === 'failed')){ finish(); return; }
+  if(phase === 'engine' && ((!S.useEngine && S.maxMove && !playOn) || Engine.state === 'failed')){ finish(); return; }
   if(game.turn() === S.color){ status = 'user'; renderAll(); }
   else { status = 'opp'; renderAll(); setTimeout(() => { if(sid === sessionId) oppMove(); }, 480); }
 }
@@ -617,9 +619,13 @@ function renderName(){
   el.classList.toggle('fresh', nameFresh); if(nameFresh){ nameFresh = false; setTimeout(() => el.classList.remove('fresh'), 1200); }
   $('opSub').textContent = 'Training: ' + S.sel.join(', ') + (S.opp ? ', against the ' + S.opp : '');
 }
+const untilText = () => S.maxMove && !playOn ? `until move ${S.maxMove}` : 'until the end of the game';
+// after a finished line: carry on past the move limit (or past the end of the book) against real moves, then Stockfish
+function keepPlaying(){ playOn = true; lastFeedback = null; nextTurn(); }
+const resultText = () => game.in_checkmate() ? (game.turn() === S.color ? 'Checkmate: you lost this one.' : 'Checkmate: you won.') : game.in_draw() ? 'The game ended in a draw.' : 'The game is over.';
 function phaseNote(){
-  if(phase === 'stats') return `<span class="muted">Named theory ended in ${esc(phaseEndName ? phaseEndName[1] : 'this line')}. Now following the moves of ${esc(Explorer.label())}, until move ${S.maxMove}.</span>`;
-  if(phase === 'engine') return `<span class="muted">${statsEnd && statsEnd.total ? `Only ${statsEnd.total} games reach this position, so` : 'Theory has ended, so'} the trainer now plays strong engine moves until move ${S.maxMove}.${Explorer.enabled() ? '' : ' Connect Lichess to follow real games instead.'}</span>`;
+  if(phase === 'stats') return `<span class="muted">Named theory ended in ${esc(phaseEndName ? phaseEndName[1] : 'this line')}. Now following the moves of ${esc(Explorer.label())}, ${untilText()}.</span>`;
+  if(phase === 'engine') return `<span class="muted">${statsEnd && statsEnd.total ? `Only ${statsEnd.total} games reach this position, so` : 'Theory has ended, so'} the trainer now plays strong engine moves ${untilText()}.${Explorer.enabled() ? '' : ' Connect Lichess to follow real games instead.'}</span>`;
   if(phase === 'book' && game && game.history().length && candidates(game.fen()).wide) return `<span class="muted">The lines of ${esc(S.sel[0])} stop here, so the trainer continues with other ${esc(S.sel[0].split(':')[0])} lines.</span>`;
   return '';
 }
@@ -685,9 +691,9 @@ function renderStatus(){
     const due = dueCards().length; if(due) acts.push([`Review ${due} due position${due > 1 ? 's' : ''}`, startReview]);
     acts.push(['Explain the last move', explainLast]);
   } else if(status === 'done'){
-    cls += ' done'; title = 'Line complete';
-    body = phase === 'book' ? (lastNamed ? `You reached the end of the known theory in <em>${esc(lastNamed[1])}</em>.` : 'You reached the end of the known theory.')
-      : `You played through move ${Math.min(moveNo(), S.maxMove)}${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.`;
+    cls += ' done'; title = game.game_over() ? 'Game over' : 'Line complete';
+    body = game.game_over() ? resultText() + ` After ${Math.ceil(game.history().length / 2)} moves${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.` : phase === 'book' ? (lastNamed ? `You reached the end of the known theory in <em>${esc(lastNamed[1])}</em>.` : 'You reached the end of the known theory.')
+      : `You played through move ${moveNo() - (game.turn() === 'w' ? 1 : 0)}${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.`;
     if(S.punish && Explorer.enabled()) body += ' No common mistake came up in this line.';
     const due = dueCards().length;
     acts = due ? [[`Review ${due} due position${due > 1 ? 's' : ''}`, startReview, 'primary'], ['Play a new line', startLine]] : [['Play another line', startLine, 'primary']];
@@ -695,6 +701,7 @@ function renderStatus(){
     const ds = Daily.active && Daily.step(Daily.active);
     if(ds && ds.done >= ds.target) acts = [['Next step of today\'s plan', () => openToday(), 'primary'], ...acts.map(a => [a[0], a[1]])];
     else if(Daily.active === 'weak' && Daily.weakQueue.length) acts = [['Next mistake to fix', nextWeak, 'primary'], ...acts.map(a => [a[0], a[1]])];
+    if(!game.game_over() && (S.useEngine || Explorer.enabled() || phase === 'book') && Engine.state !== 'failed') acts.push(['Keep playing to the end', keepPlaying]);
     acts.push(['Explain the last move', explainLast]);
   } else if(status === 'checking' || status === 'loading'){
     title = status === 'checking' ? 'Checking your move…' : 'Looking up what players choose here…';
@@ -760,7 +767,7 @@ function saveSession(){
   else if(status === 'wrong'){ moves.pop(); marks.pop(); }   // come back to the position before the wrong move (it is already graded)
   while(marks.length < moves.length) marks.push('u');
   store.set('session', {t: Date.now(), color: S.color, moves, marks, reviewing, phase, phaseEndName, statsEnd,
-    done: status === 'done', daily: Daily.active, good: stats.good, bad: stats.bad});
+    done: status === 'done', daily: Daily.active, good: stats.good, bad: stats.bad, playOn});
 }
 function restoreSession(){
   const s = store.get('session', null);
@@ -771,7 +778,7 @@ function restoreSession(){
     enterTraining(); resetLine();
     for(let i = 0; i < s.moves.length; i++){ if(!game.move(s.moves[i])) break; userMarks.push(s.marks[i] || 'u'); }
     reviewing = s.reviewing || null; recomputeName(); nameFresh = false;
-    phase = s.phase || 'book'; phaseEndName = s.phaseEndName || null; statsEnd = s.statsEnd || null;
+    phase = s.phase || 'book'; phaseEndName = s.phaseEndName || null; statsEnd = s.statsEnd || null; playOn = !!s.playOn;
     if(s.done){ status = 'done'; renderAll(); }
     else nextTurn();
     return true;
@@ -780,6 +787,8 @@ function restoreSession(){
 
 /* ================= navigation ================= */
 let trainAlive = false;  // a training game is in progress (the Train tab returns to it)
+// a line you can come back to from Today
+const lineInProgress = () => trainAlive && !!game && status !== 'done' && game.history().length > 0;
 function setTrainAlive(v){ trainAlive = v; if(!v) store.set('session', null); }
 function setExplainInfo(v){ explainInfo = v; }
 function newSession(){ sessionId++; }
@@ -792,7 +801,7 @@ const sqAt = (x, y) => { const el = document.elementFromPoint(x, y); const s = e
 /* --- training stats only once there is something to show --- */
 function syncStats(){ const st = document.querySelector('#train .stats'); if(st) st.hidden = ['sGood', 'sBad', 'sDue', 'sKnown'].every(id => $(id).textContent === '0'); }
 
-export { BRUSH, enterTraining, soundMove, restoreSession, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
+export { BRUSH, enterTraining, lineInProgress, soundMove, restoreSession, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

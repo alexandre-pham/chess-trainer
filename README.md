@@ -27,7 +27,7 @@ Live: https://alexandre-pham.github.io/chess-trainer/
   to see what it costs, then go back and try again.
 - **Spaced repetition**: every position you must find is a card; missed positions
   come back sooner.
-- **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, and where you left
+- **Today** (home page): one button for the next thing to do, and a daily plan (warm-up, reviews, new lines, mistakes, plans, and where you left
   your repertoire in your recent chess.com or Lichess games).
 - **Chess.com**: with your username (no sign-in), your chess.com games are checked against
   your repertoire, and the statistics follow your chess.com level: your most played time
