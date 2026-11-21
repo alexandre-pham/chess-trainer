@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Opening Trainer</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,7 +16,7 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand">Opening Trainer</div>
+    <a class="brand" href="./" id="toHome">Opening Trainer</a>
     <nav class="mainnav" aria-label="Main">
       <button class="nav-item" id="toToday">Today</button>
       <button class="nav-item" id="toSetup">Openings</button>
@@ -105,14 +107,9 @@
         <div class="set-ctl"><select id="useEngine"><option value="1">Keep playing with Stockfish</option><option value="0">End the line</option></select></div>
       </div>
       <div class="set-row">
-        <div class="set-lbl"><b>Account and backup</b><span>Sign in to keep your progress on all your devices, or save it as a file.</span></div>
+        <div class="set-lbl"><b>Account</b><span>Sign in to keep your progress on all your devices. It syncs by itself.</span></div>
         <div class="set-ctl">
           <div id="syncBox" class="full"></div>
-          <div class="inline">
-            <button class="btn" id="exportBtn">Export progress</button>
-            <button class="btn" id="importBtn">Import progress</button>
-            <input type="file" id="importFile" accept="application/json" hidden>
-          </div>
         </div>
       </div>
     </div>

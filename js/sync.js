@@ -144,17 +144,15 @@ const Sync = window.Sync = {
 
 function renderSync(){
   const el = $('syncBox'); if(!el) return;
-  if(!Sync.configured()){ el.innerHTML = '<p class="help">Accounts are not set up for this copy of the app, so your progress stays in this browser. Use Export and Import to move it.</p>'; return; }
+  if(!Sync.configured()){ el.innerHTML = '<p class="help">Accounts are not set up for this copy of the app, so your progress stays in this browser.</p>'; return; }
   if(!Sync.ready){ el.innerHTML = `<div class="conn ${Sync.state === 'error' ? 'err' : ''}">${Sync.state === 'error' ? esc(Sync.error) : 'Loading…'}</div>`; return; }
   const working = Sync.state === 'working';
   if(Sync.user){
     const when = Sync.last ? new Date(Sync.last).toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit'}) : '';
     const line = working ? 'Syncing…' : Sync.state === 'error' ? Sync.error : when ? `Last synced at ${when}.` : '';
     el.innerHTML = `<div class="who"><span>Signed in as <b>${esc(Sync.user.email)}</b></span><button class="btn quiet" id="syncOut" ${working ? 'disabled' : ''}>Sign out</button></div>
-      <div class="conn ${Sync.state === 'error' ? 'err' : ''}">${esc(line)}</div>
-      <div class="inline" style="margin-top:6px"><button class="btn" id="syncNow" ${working ? 'disabled' : ''}>Sync now</button></div>`;
+      <div class="conn ${Sync.state === 'error' ? 'err' : ''}">${esc(line)}</div>`;
     $('syncOut').onclick = () => Sync.signOut();
-    $('syncNow').onclick = () => Sync.syncNow();
     return;
   }
   const keep = id => ($(id) || {}).value || '';

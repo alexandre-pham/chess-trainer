@@ -27,6 +27,7 @@ import { init as init_progress } from './progress.js';
 function start(){
   $('toSetup').onclick = () => { newSession(); Daily.active = null; setTrainAlive(false); showPage('setup'); renderSetup(); };
   $('toSettings').onclick = () => showPage('settings');
+  $('toHome').onclick = e => { e.preventDefault(); openToday(); };
   $('toTrain').onclick = () => {
     if(trainAlive && game){ enterTraining(); renderAll(); }
     else if(S.sel.length){ enterTraining(); startLine(); }

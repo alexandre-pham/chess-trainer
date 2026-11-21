@@ -68,7 +68,7 @@ js/book.js         opening families, selection and settings, book moves
 js/srs.js          spaced repetition cards and answer log
 js/logic.js        pure logic: review intervals, merging progress, your games vs your repertoire
 js/setup.js        Openings page
-js/settings.js     Settings page: Lichess sign-in, statistics, backup
+js/settings.js     Settings page: chess.com username, Lichess sign-in, statistics
 js/sync.js         merging progress, accounts and sync (Firebase Auth + Firestore)
 js/firebase-config.js  the Firebase project's web config (null = no accounts)
 js/explorer.js     Lichess Opening Explorer client

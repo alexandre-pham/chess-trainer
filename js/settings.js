@@ -1,13 +1,7 @@
-// The Settings page: chess.com username, Lichess sign-in, move statistics and backup controls.
+// The Settings page: chess.com username, Lichess sign-in and move statistics.
 import { $, b64url, esc, randomStr, store } from './util.js';
 import { S } from './book.js';
-import { cards, moveLog } from './srs.js';
-import { renderSel } from './setup.js';
-import { mergeProgress } from './sync.js';
 import { Explorer } from './explorer.js';
-import { coordLog, coordRounds } from './squares.js';
-import { Daily } from './daily.js';
-import { timeLog } from './progress.js';
 import { showPage } from './nav.js';
 import { ccStats } from './chesscom.js';
 import { RATING_GROUPS, SPEEDS_FOR, mostPlayed, ratingGroups, toLichessRating } from './logic.js';
@@ -128,7 +122,6 @@ async function checkExplorer(){
 }
   
 
-/* --- export / import --- */
 
 export { checkExplorer, refreshCc, renderAuth, renderExplorerChoices };
 
@@ -154,20 +147,5 @@ function init(){
   })();
   $('ccUser').onchange = e => { S.ccUser = e.target.value.trim(); store.set('ccUser', S.ccUser); if(S.ccUser){ S.ccAuto = 1; store.set('ccAuto', 1); } refreshCc(true); };
   $('ccAuto').onchange = e => { S.ccAuto = e.target.checked ? 1 : 0; store.set('ccAuto', S.ccAuto); applyCcLevel(); renderCc(); };
-  $('exportBtn').onclick = () => {
-    const blob = new Blob([JSON.stringify({version: 5, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog})], {type: 'application/json'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'opening-trainer-progress.json'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  };
-  $('importBtn').onclick = () => $('importFile').click();
-  $('importFile').onchange = async e => {
-    const f = e.target.files[0]; if(!f) return;
-    try{
-      const data = JSON.parse(await f.text());
-      if(!data.cards) throw new Error('No progress found in this file.');
-      mergeProgress(data); renderSel(); alert('Progress imported: ' + Object.keys(data.cards).length + ' positions.');
-    }catch(err){ alert('This file could not be imported: ' + err.message); }
-    e.target.value = '';
-  };
 }
 export { init };
