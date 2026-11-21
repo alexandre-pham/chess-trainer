@@ -4,7 +4,7 @@ import { S, rebuildSel } from './book.js';
 import { cardsFor, moveLog } from './srs.js';
 import { Sync } from './sync.js';
 import { enterTraining, reviewing, startReviewKey } from './trainer.js';
-import { C, coordLog } from './squares.js';
+import { coordLog } from './squares.js';
 import { Daily } from './daily.js';
 import { currentPage, showPage } from './nav.js';
 
@@ -159,8 +159,8 @@ function init(){
   setInterval(() => {
     if(document.visibilityState !== 'visible') return;
     const act = currentActivity(); if(!act) return;
-    // count only while you are actually working: a click or key in the last 90 seconds, or a running speed round
-    if(Date.now() - lastInput > 90000 && !C.round) return;
+    // count only while you are actually working: a click or key in the last 90 seconds
+    if(Date.now() - lastInput > 90000) return;
     const d = dayKey(Date.now()), mine = timeLog[DEVICE] = timeLog[DEVICE] || {}, day = mine[d] = mine[d] || {};
     day[act] = (day[act] || 0) + 5;
     store.set('time', timeLog);

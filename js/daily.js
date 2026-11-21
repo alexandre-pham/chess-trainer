@@ -8,7 +8,7 @@ import { Sync } from './sync.js';
 import { Explorer } from './explorer.js';
 import { renderInsight, wikiQuick } from './explain.js';
 import { enterTraining, startLine, startReview, startReviewKey } from './trainer.js';
-import { C, fmtMoves, openCoords } from './squares.js';
+import { fmtMoves, openCoords } from './squares.js';
 import { showPage } from './nav.js';
 import { openReview } from './review.js';
 import { dayKey, fmtDay } from './progress.js';
@@ -31,7 +31,7 @@ const Daily = {
     const B = BUDGETS[this.budget], due = dueCards().length;
     const hard = relevantCards().filter(([k, c]) => c.lapses > 0).length;
     const steps = [
-      {id: 'warm', title: 'Warm up on the squares', why: 'A short speed round makes reading and finding squares automatic, so your attention stays on the chess.', target: B.warm, unit: 'speed round'},
+      {id: 'warm', title: 'Warm up on the squares', why: 'Playing a famous game from its written moves makes reading and finding squares automatic, so your attention stays on the chess.', target: B.warm, unit: 'game'},
       {id: 'review', title: 'Review what is due', why: 'Positions come back just before you would forget them. Clearing these first protects what you have already learned.', target: Math.min(due, B.review), unit: 'position'},
       {id: 'new', title: 'Learn new lines', why: due > B.review * 2 ? 'Skipped today: you have a large review backlog, and adding new lines on top of it makes everything harder to retain.' : 'A few new lines a day, not more: small steps stick better than long cramming sessions.', target: due > B.review * 2 ? 0 : B.newLines, unit: 'line'},
       {id: 'weak', title: 'Fix your repeated mistakes', why: 'The positions you have missed most get focused, repeated practice.', target: Math.min(B.weak, hard), unit: 'position'},
@@ -85,7 +85,7 @@ function renderToday(){
 function runStep(id){
   Daily.active = id;
   const s = Daily.step(id);
-  if(id === 'warm'){ C.mode = 'speed'; C.side = S.color; openCoords(); return; }
+  if(id === 'warm'){ openCoords(); return; }
   if(id === 'review'){ enterTraining(); startReview(); return; }
   if(id === 'new'){ enterTraining(); startLine(); return; }
   if(id === 'weak'){

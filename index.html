@@ -189,29 +189,16 @@
     <div id="tdExtra" hidden></div>
   </section>
 
-  <!-- COORDINATES -->
+  <!-- SQUARES -->
   <section id="coords" hidden>
     <h1 class="pg-h">Learn the squares</h1>
+    <p class="lede">Play famous games on the board from their written moves.</p>
     <div class="row c-top">
-      <div class="field">
-        <span class="field-label">Exercise</span>
-        <div class="inline" id="cModes"></div>
-      </div>
       <div class="field">
         <span class="field-label">Board seen from</span>
         <div class="seg" role="group" aria-label="Board seen from" id="cSides"></div>
       </div>
-    </div>
-    <div class="row c-top" id="cPlayOpts" hidden>
-      <div class="field">
-        <label class="field-label" for="cSrc2">Moves from</label>
-        <select id="cSrc2"><option value="famous">Famous games</option><option value="players">Great players</option><option value="mine">My Lichess games</option><option value="lines">My opening</option></select>
-      </div>
-      <div class="field" id="cPlayerF">
-        <label class="field-label" for="cPlayer">Player</label>
-        <select id="cPlayer"></select>
-      </div>
-      <div class="field">
+      <div class="field" id="cLenF">
         <label class="field-label" for="cLen">Length</label>
         <select id="cLen"><option value="10">10 moves</option><option value="20">20 moves</option><option value="30" selected>30 moves</option><option value="40">40 moves</option><option value="0">Whole game</option></select>
       </div>
@@ -220,34 +207,20 @@
       <div>
         <div class="board-wrap" id="cBoardWrap">
           <div class="board" id="cBoard"></div>
-          <svg class="arrows" id="cArrows" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
         </div>
       </div>
       <div class="panel">
         <div class="daybar" hidden></div>
-        <div class="c-src" id="cSrc">&nbsp;</div>
         <div class="c-prompt" id="cPrompt"></div>
         <div class="c-line" id="cLine"></div>
-        <div class="c-input" id="cInputRow" hidden>
-          <input type="text" id="cInput" autocomplete="off" autocapitalize="off" spellcheck="false">
-          <button class="btn primary" id="cCheck">Check</button>
-        </div>
         <div class="status" id="cFeedback" hidden></div>
         <div class="actions" id="cActions"></div>
         <div class="stats">
-          <div><b id="cOk">0</b>right</div>
-          <div><b id="cBad">0</b>wrong</div>
-          <div><b id="cTimer">–</b><span id="cTimerLbl">seconds left</span></div>
+          <div><b id="cOk">0</b>first try</div>
+          <div><b id="cBad">0</b>missed</div>
+          <div><b id="cAcc">–</b>accuracy</div>
         </div>
       </div>
-    </div>
-    <div class="pg-panel">
-      <h2>Speed rounds</h2>
-      <div id="cRounds"></div>
-    </div>
-    <div class="pg-panel">
-      <h2 id="cHeatTitle">Squares you miss most</h2>
-      <div class="c-heat-row"><div id="cHeat" class="c-heat"></div><div id="cHeatList"></div></div>
     </div>
   </section>
 
