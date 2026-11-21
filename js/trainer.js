@@ -7,6 +7,7 @@ import { Explorer, minGames, scoreFor } from './explorer.js';
 import { explainLast, explainMistake, renderInsight } from './explain.js';
 import { Engine, fmtEval, fmtLine, pvToSan, renderEngineNote, uciMove, waitEngine } from './engine.js';
 import { Daily, nextWeak, openToday, renderDayBar } from './daily.js';
+import { showPage } from './nav.js';
 
 /* ================= game state ================= */
 // phases: 'book' (named lines of your selection), 'stats' (Lichess explorer), 'engine' (Stockfish)
@@ -605,7 +606,7 @@ let trainAlive = false;  // a training game is in progress (the Train tab return
 function setTrainAlive(v){ trainAlive = v; if(!v) store.set('session', null); }
 function setExplainInfo(v){ explainInfo = v; }
 function newSession(){ sessionId++; }
-function enterTraining(){ trainAlive = true; $('progress').hidden = true; $('coords').hidden = true; $('today').hidden = true; $('review').hidden = true; $('toToday').hidden = false; renderDayBar(); $('setup').hidden = true; $('train').hidden = false; $('toSetup').hidden = false; window.scrollTo(0,0); Engine.init(); renderEngineNote(); }
+function enterTraining(){ trainAlive = true; showPage('train'); renderDayBar(); Engine.init(); renderEngineNote(); }
 
 /* ================= input: click and drag ================= */
 let drag = null;

@@ -43,7 +43,8 @@ No build step and no dependencies to install.
 ```
 index.html         page structure
 css/app.css        styles
-js/main.js         start-up and navigation between pages
+js/main.js         start-up
+js/nav.js          navigation between pages
 js/util.js         small helpers, browser storage
 js/data.js         loads the opening book and piece images
 js/book.js         opening families, selection and settings, book moves

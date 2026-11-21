@@ -7,6 +7,7 @@ import { coordLog, coordRounds } from './squares.js';
 import { Daily } from './daily.js';
 import { timeLog } from './progress.js';
 import { firebaseConfig } from './firebase-config.js';
+import { currentPage } from './nav.js';
 
 /* ---- merging progress from another device or file: newest card wins, histories are combined ---- */
 function mergeProgress(data){
@@ -142,7 +143,7 @@ const Sync = window.Sync = {
         }
         this.remoteHash = h; store.set('fbHash', h);
         this.state = 'ok'; this.error = ''; this.last = Date.now(); store.set('fbLast', this.last);
-        if(gotNew){ if(!$('setup').hidden) renderSel(); else if(!$('train').hidden && game) renderStatus(); }
+        if(gotNew){ if(currentPage() === 'setup') renderSel(); else if(currentPage() === 'train' && game) renderStatus(); }
       }catch(e){ this.state = 'error'; this.error = errText(e); }
       this.busy = null; renderSync();
       if(this.dirty) this.schedule(1500);

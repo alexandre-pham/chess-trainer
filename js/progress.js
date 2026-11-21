@@ -2,12 +2,11 @@
 import { $, esc, pct, randomStr, store } from './util.js';
 import { S, rebuildSel } from './book.js';
 import { cardsFor, moveLog } from './srs.js';
-import { renderSetup } from './setup.js';
 import { Sync } from './sync.js';
-import { enterTraining, game, renderAll, reviewing, startReviewKey, syncStats } from './trainer.js';
+import { enterTraining, reviewing, startReviewKey } from './trainer.js';
 import { C, coordLog } from './squares.js';
 import { Daily } from './daily.js';
-import { syncNav } from './main.js';
+import { currentPage, showPage } from './nav.js';
 
 /* ================= time spent ================= */
 // Active time per day and activity. Each browser keeps its own record (so syncing never double counts); totals add them up.
@@ -18,10 +17,11 @@ const MIN_STREAK = 5;  // minutes needed for a day to count in the streak
 let lastInput = Date.now(), tickN = 0;
 
 function currentActivity(){
-  if(!$('review').hidden) return 'games';
-  if(!$('coords').hidden) return 'squares';
-  if(!$('train').hidden) return reviewing || Daily.active === 'review' || Daily.active === 'weak' ? 'review' : 'lines';
-  if(!$('today').hidden && !$('tdExtra').hidden) return 'plans';
+  const p = currentPage();
+  if(p === 'review') return 'games';
+  if(p === 'coords') return 'squares';
+  if(p === 'train') return reviewing || Daily.active === 'review' || Daily.active === 'weak' ? 'review' : 'lines';
+  if(p === 'today' && !$('tdExtra').hidden) return 'plans';
   return null;
 }
 
@@ -92,13 +92,10 @@ function renderTime(){
 }
 
 /* ================= progress page ================= */
-let pgFrom = 'setup';
 const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const fmtDay = k => new Date(k + 'T12:00').toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
 function openProgress(){
-  pgFrom = !$('train').hidden ? 'train' : 'setup';
-  if(!$('coords').hidden){ clearInterval(C.timer); C.timer = null; C.round = null; }
-  $('setup').hidden = true; $('train').hidden = true; $('coords').hidden = true; $('today').hidden = true; $('review').hidden = true; $('toToday').hidden = false; $('progress').hidden = false; $('toSetup').hidden = true; $('toProgress').hidden = true; $('toCoords').hidden = false;
+  showPage('progress');
   // openings you have practised, most recent first
   const recent = new Map();
   for(const e of moveLog){ const k = e[1] + '|' + e[2]; recent.set(k, Math.max(recent.get(k) || 0, e[0])); }
@@ -107,14 +104,8 @@ function openProgress(){
   const keys = [...recent.entries()].sort((a,b) => b[1] - a[1]).map(x => x[0]);
   $('pgOpening').innerHTML = keys.length ? keys.map(k => { const [o, c] = k.split('|'); return `<option value="${esc(k)}">${esc(o)}, as ${c === 'w' ? 'White' : 'Black'}</option>`; }).join('') : '<option value="">Nothing practised yet</option>';
   $('pgOpening').value = recent.has(cur) ? cur : (keys[0] || '');
-  renderProgress(); window.scrollTo(0, 0);
+  renderProgress();
 }
-function closeProgress(){
-  $('progress').hidden = true; $('toProgress').hidden = false;
-  if(pgFrom === 'train' && game){ $('train').hidden = false; $('toSetup').hidden = false; renderAll(); }
-  else { $('setup').hidden = false; renderSetup(); }
-}
-  
 function renderProgress(){
   renderTime();
   const v = $('pgOpening').value;
@@ -172,13 +163,9 @@ function renderProgress(){
   }).join('') + '</ul>' : '<p class="help" style="color:var(--muted);margin:0">No missed positions yet.</p>';
   $('pgHard').querySelectorAll('[data-practice]').forEach(b => b.onclick = () => {
     S.sel = [open]; S.color = color; store.set('sel', S.sel); store.set('color', color); rebuildSel();
-    $('progress').hidden = true; $('toProgress').hidden = false; enterTraining(); startReviewKey(b.dataset.practice);
+    enterTraining(); startReviewKey(b.dataset.practice);
   });
 }
-
-/* --- progress empty state --- */
-
-  
 
 export { dayKey, fmtDay, timeLog };
 
@@ -194,15 +181,11 @@ function init(){
     day[act] = (day[act] || 0) + 5;
     store.set('time', timeLog);
     if(++tickN % 12 === 0 && window.Sync) Sync.schedule();   // about once a minute
-    if(!$('progress').hidden) renderTime();
+    if(currentPage() === 'progress') renderTime();
   }, 5000);
   $('tmPrev').onclick = () => { const [y, m] = calMonth.split('-').map(Number), d = new Date(y, m - 2, 1); calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderTime(); };
   $('tmNext').onclick = () => { const [y, m] = calMonth.split('-').map(Number), d = new Date(y, m, 1); calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderTime(); };
   $('toProgress').onclick = openProgress;
-  $('pgBack').onclick = closeProgress;
   $('pgOpening').onchange = renderProgress;
-  renderSetup();
-  syncStats();
-  syncNav();
 }
 export { init };

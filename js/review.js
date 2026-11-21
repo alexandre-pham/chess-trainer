@@ -8,6 +8,7 @@ import { renderInsight, wikiQuick } from './explain.js';
 import { BRUSH, enterTraining, files, startReviewKey } from './trainer.js';
 import { Engine, fmtLine, pvToSan, uciMove, waitEngine } from './engine.js';
 import { openToday } from './daily.js';
+import { onLeave, showPage } from './nav.js';
 
 /* ================= game review ================= */
 // Replays one of your Lichess games: book moves, Stockfish evaluation of every move, your mistakes with the better move,
@@ -28,8 +29,7 @@ function judgeMove(j){
 }
 function openReview(gm){
   R.token++; const tok = R.token;
-  ['setup', 'train', 'progress', 'coords', 'today'].forEach(id => $(id).hidden = true);
-  $('review').hidden = false; $('toToday').hidden = false; $('toCoords').hidden = false; $('toProgress').hidden = false; $('toSetup').hidden = true;
+  showPage('review');
   rStopAuto(); R.gm = gm; R.var = null; R.sel = null; R.vEval = new Map();
   R.sans = (gm.moves || '').split(' ').filter(Boolean);
   const me = (S.user || '').toLowerCase();
@@ -313,7 +313,6 @@ function rPractise(j){
 }
 function closeReview(silent){
   R.token++;
-  $('review').hidden = true;
   if(!silent){ openToday(true, true); }
 }
 
@@ -344,6 +343,7 @@ function init(){
     if(R.var) rVarBoard(); else { rRenderBoard(); }
   });
   $('rBack').onclick = () => closeReview();
+  onLeave(from => { if(from === 'review') R.token++; });
   $('rFirst').onclick = () => R.var ? rVarStep(-999) : rGo(0);
   $('rPrev').onclick = () => R.var ? rVarStep(-1) : rGo(R.ply - 1);
   $('rNext').onclick = () => R.var ? rVarStep(1) : rGo(R.ply + 1);

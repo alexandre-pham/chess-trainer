@@ -2,12 +2,12 @@
 import { $, esc, pct, store } from './util.js';
 import { LINES, PIECES } from './data.js';
 import { LINE_PLIES, S, famFlags, selFlags } from './book.js';
-import { renderSetup } from './setup.js';
 import { Sync } from './sync.js';
 import { PNAME } from './explain.js';
-import { BRUSH, files, game, renderAll } from './trainer.js';
+import { BRUSH, files } from './trainer.js';
 import { Engine, uciMove, waitEngine } from './engine.js';
-import { Daily, openToday, renderDayBar } from './daily.js';
+import { Daily, renderDayBar } from './daily.js';
+import { onLeave, showPage } from './nav.js';
 
 /* ================= coordinates trainer ================= */
 // every answer about a square: [time, side seen from, square, correct 1/0, exercise]
@@ -371,21 +371,7 @@ function cStart(){
   ({read: qRead, play: qPlay, find: qFind, speed: qSpeedIntro})[C.mode]();
   if(C.mode === 'speed'){ $('cOk').textContent = 0; $('cBad').textContent = 0; }
 }
-let cFrom = 'setup';
-function openCoords(){
-  cFrom = !$('train').hidden ? 'train' : !$('progress').hidden ? 'progress' : !$('today').hidden ? 'today' : 'setup';
-  ['setup', 'train', 'progress', 'today', 'review'].forEach(id => $(id).hidden = true); $('toToday').hidden = false; renderDayBar();
-  $('coords').hidden = false; $('toSetup').hidden = true; $('toCoords').hidden = true; $('toProgress').hidden = false;
-  cStart(); window.scrollTo(0, 0);
-}
-function closeCoords(){
-  clearInterval(C.timer); C.timer = null; C.round = null;
-  $('coords').hidden = true; $('toCoords').hidden = false;
-  if(cFrom === 'today' || Daily.active){ openToday(); return; }
-  if(cFrom === 'train' && game){ $('train').hidden = false; $('toSetup').hidden = false; renderAll(); }
-  else { $('setup').hidden = false; renderSetup(); }
-}
- 
+function openCoords(){ showPage('coords'); renderDayBar(); cStart(); }
 
 export { C, coordLog, coordRounds, fmtMoves, openCoords };
 
@@ -411,7 +397,7 @@ function init(){
     const nb = [...$('cActions').querySelectorAll('button')].find(b => b.textContent === 'Next'); if(nb){ e.preventDefault(); nb.click(); }
   });
   $('toCoords').onclick = () => { Daily.active = null; openCoords(); };
-  $('cBack').onclick = closeCoords;
+  onLeave(from => { if(from === 'coords'){ clearInterval(C.timer); C.timer = null; C.round = null; } });
   $('cSrc2').onchange = e => { C.src = e.target.value; store.set('cSrc', C.src); cRenderPlayOpts(); qPlay(); };
   $('cLen').onchange = e => { C.len = +e.target.value; store.set('cLen', C.len); qPlay(); };
   $('cPlayer').onchange = e => { C.player = e.target.value; store.set('cPlayer', C.player); qPlay(); };

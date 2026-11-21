@@ -9,7 +9,8 @@ import { Explorer } from './explorer.js';
 import { renderInsight, wikiQuick } from './explain.js';
 import { enterTraining, startLine, startReview, startReviewKey } from './trainer.js';
 import { C, fmtMoves, openCoords } from './squares.js';
-import { R, openReview } from './review.js';
+import { showPage } from './nav.js';
+import { openReview } from './review.js';
 import { dayKey, fmtDay } from './progress.js';
 
 /* ================= daily practice ================= */
@@ -60,7 +61,7 @@ const Daily = {
 };
 function stepLabel(s){ return `${s.done} of ${s.target} ${s.unit}${s.target > 1 ? 's' : ''}`; }
 function renderToday(){
-  if(!S.sel.length){ $('tdPlan').innerHTML = '<div class="pg-panel"><p style="margin:0">Choose an opening first: the plan is built around it.</p><div class="inline" style="margin-top:10px"><button class="btn primary" id="tdPick">Choose an opening</button></div></div>'; $('tdPick').onclick = () => { closeToday(true); }; $('tdHead').textContent = ''; return; }
+  if(!S.sel.length){ $('tdPlan').innerHTML = '<div class="pg-panel"><p style="margin:0">Choose an opening first: the plan is built around it.</p><div class="inline" style="margin-top:10px"><button class="btn primary" id="tdPick">Choose an opening</button></div></div>'; $('tdPick').onclick = () => $('toSetup').click(); $('tdHead').textContent = ''; return; }
   const plan = Daily.ensure(), streak = Daily.streak();
   const mins = `About ${Daily.budget} minutes.`;
   $('tdHead').innerHTML = `${esc(S.sel[0])}, as ${S.color === 'w' ? 'White' : 'Black'}. ${mins} ${streak ? `<b>${streak}-day streak.</b>` : ''}`;
@@ -213,22 +214,16 @@ async function checkGames(){
     });
   }catch(e){ out.textContent = (e && e.message) || 'Could not load your games.'; }
 }
-let tdFrom = 'setup';
 function openToday(keepActive, keepExtra){
   if(!keepActive) Daily.active = null;
-  clearInterval(C.timer); C.timer = null; C.round = null;
-  ['setup', 'train', 'progress', 'coords', 'review'].forEach(id => $(id).hidden = true); R.token++;
-  $('today').hidden = false; if(!keepExtra) $('tdExtra').hidden = true;
-  $('toSetup').hidden = true; $('toToday').hidden = true; $('toCoords').hidden = false; $('toProgress').hidden = false;
+  showPage('today', false); if(!keepExtra) $('tdExtra').hidden = true;
   renderToday(); renderDayBar(); if(keepExtra && !$('tdExtra').hidden) $('tdExtra').scrollIntoView({block: 'start'}); else window.scrollTo(0, 0);
 }
-function closeToday(toSetup){ $('today').hidden = true; $('toToday').hidden = false; $('setup').hidden = false; renderSetup(); }
 
 export { Daily, nextWeak, openToday, renderDayBar };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){
   $('toToday').onclick = () => openToday();
-  $('tdBack').onclick = () => closeToday();
 }
 export { init };
