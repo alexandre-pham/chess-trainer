@@ -23,6 +23,8 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Explanations**: for each mistake, facts computed from the position and Stockfish's
   lines (material, the opponent's reply, loose pieces, pawn structure), and the
   human-written explanation of the opening from Wikibooks.
+- **Play it out**: after a wrong move, keep it and play on against Stockfish's best replies
+  to see what it costs, then go back and try again.
 - **Spaced repetition**: every position you must find is a card; missed positions
   come back sooner.
 - **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, and where you left
