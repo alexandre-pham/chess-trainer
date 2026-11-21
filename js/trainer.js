@@ -64,20 +64,22 @@ function recomputePhase(){
   if(phase === 'book'){ phase = Explorer.enabled() ? 'stats' : 'engine'; phaseEndName = lastNamed; }
 }
 function navBack(){
-  if(!game || !game.history().length || $('train').hidden || sandbox) return;
+  if(!game || !game.history().length || $('train').hidden) return;
   sessionId++;
+  if(sandbox){ if(game.history().length <= sandbox.ply + 1){ sbLeave(); afterNav(); return; } const m = game.undo(); redo.push({san: m.san, mark: userMarks.pop()}); sbAfterNav(); return; }
   if(status === 'wrong'){ game.undo(); userMarks.pop(); wrongInfo = null; }  // drop the wrong move, as with Try again
   else { const m = game.undo(); redo.push({san: m.san, mark: userMarks.pop()}); }
   afterNav();
 }
 function navForward(){
-  if(!redo.length || $('train').hidden || sandbox) return;
+  if(!redo.length || $('train').hidden) return;
   sessionId++;
+  if(sandbox){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); sbAfterNav(); return; }
   if(status === 'wrong'){ game.undo(); userMarks.pop(); wrongInfo = null; }
   const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); afterNav();
 }
-function navFirst(){ if(sandbox) return; while(game && game.history().length) navBackSilent(); afterNav(); }
-function navLast(){ if(sandbox) return; while(redo.length){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); } afterNav(); }
+function navFirst(){ if(sandbox){ sessionId++; sbLeave(); } while(game && game.history().length) navBackSilent(); afterNav(); }
+function navLast(){ sessionId++; while(redo.length){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); } if(sandbox) sbAfterNav(); else afterNav(); }
 function navBackSilent(){
   sessionId++;
   if(status === 'wrong'){ game.undo(); userMarks.pop(); wrongInfo = null; status = 'browse'; return; }
@@ -459,15 +461,27 @@ function sandboxMove(from, to){
   const piece = game.get(from), promo = piece && piece.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : undefined;
   const m = game.move(promo ? {from, to, promotion: promo} : {from, to});
   if(!m) return false;
-  userMarks.push('u'); selectedSq = null; arrowsList = []; explainInfo = null;
+  userMarks.push('u'); selectedSq = null; arrowsList = []; explainInfo = null; redo = [];  // a new move replaces the later ones
   sandboxOpp(); return true;
 }
 const overText = () => game.in_checkmate() ? (game.turn() === S.color ? 'Checkmate: you are mated.' : 'Checkmate: you win.') : 'The game is over (draw).';
+// after stepping through the played-out moves: Stockfish answers at the end, otherwise you may play from here
+function sbAfterNav(){
+  explainInfo = null; arrowsList = []; selectedSq = null; hintOn = false; recomputeName();
+  sandbox.over = game.game_over() ? overText() : '';
+  if(!redo.length && game.turn() !== S.color && !sandbox.over){ sandboxOpp(); return; }
+  status = game.turn() === S.color ? 'sbuser' : 'sbbrowse'; renderAll();
+}
+// stepping back to the wrong move leaves play-it-out, as Try again would
+function sbLeave(){
+  redo = []; while(game.history().length > sandbox.ply){ game.undo(); userMarks.pop(); }
+  sandbox = null; wrongInfo = null; arrowsList = []; status = 'browse';
+}
 // back to the wrong move, with its explanation and the usual choices
 function backToMistake(){
   if(!sandbox) return;
   sessionId++;
-  while(game.history().length > sandbox.ply + 1){ game.undo(); userMarks.pop(); }
+  redo = []; while(game.history().length > sandbox.ply + 1){ game.undo(); userMarks.pop(); }
   wrongInfo = sandbox.info; sandbox = null; arrowsList = []; explainInfo = null; status = 'wrong';
   recomputeName(); renderAll();
 }
@@ -558,7 +572,14 @@ function renderMoves(){
 }
 // tap a move in the list to go to that position
 function jumpTo(ply){
-  if(!game || $('train').hidden || sandbox || ply === game.history().length) return;
+  if(!game || $('train').hidden || ply === game.history().length) return;
+  if(sandbox){
+    sessionId++;
+    if(ply <= sandbox.ply){ sbLeave(); }
+    else { while(game.history().length > ply){ const m = game.undo(); redo.push({san: m.san, mark: userMarks.pop()}); }
+      while(game.history().length < ply && redo.length){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); }
+      sbAfterNav(); return; }
+  }
   while(game.history().length > ply) navBackSilent();
   while(game.history().length < ply && redo.length){ const r = redo.pop(); game.move(r.san); userMarks.push(r.mark); }
   afterNav();
@@ -582,7 +603,7 @@ function renderEnginePanel(){
   if(r){ drawEngine(fen, r); return; }
   drawEngine(fen, null);
   // the trainer's own checks come first: analyse once the board is waiting for a move
-  if(!['user', 'browse', 'wrong', 'done'].includes(status) || engPending === fen) return;
+  if(!['user', 'browse', 'wrong', 'done', 'sbuser', 'sbbrowse'].includes(status) || engPending === fen) return;
   engPending = fen;
   waitEngine().then(() => Engine.available() ? Engine.analyse(fen, 18, 3, 1500) : null).then(res => {
     if(engPending === fen) engPending = null;
@@ -655,8 +676,9 @@ function renderStatus(){
   if(sandbox){
     const w = sandbox.info, ev = sandbox.ev;
     cls += ev == null || ev > -50 ? '' : ev < -150 ? ' bad' : ' warn';
-    title = status === 'sbopp' ? 'Stockfish is answering…' : sandbox.over || `After your ${esc(w.move.san)}: ${ev == null ? '' : fmtEval(ev) + ' for you'}`;
-    body = `Stockfish plays the opponent's best moves. Keep playing to see where your ${esc(w.move.san)} leads; nothing here is graded.`;
+    title = status === 'sbopp' ? 'Stockfish is answering…' : redo.length ? `Playing it out, back at move ${moveNo()}` : sandbox.over || `After your ${esc(w.move.san)}: ${ev == null ? '' : fmtEval(ev) + ' for you'}`;
+    body = redo.length ? `${status === 'sbuser' ? 'Play another move to try something else; Stockfish answers and the later moves are replaced. ' : ''}Use ▶ to step forward, or ◀ past your ${esc(w.move.san)} to train again from there.`
+      : `Stockfish plays the opponent's best moves. Keep playing to see where your ${esc(w.move.san)} leads; nothing here is graded. Use ◀ to go back and try other moves.`;
     acts = [['Back to my mistake', backToMistake, 'primary'], ['Explain the last move', explainLast, '', status === 'sbopp']];
   } else if(status === 'wrong' && wrongInfo && wrongInfo.phase === 'punish'){
     const w = wrongInfo, p = w.p, san = esc(w.move.san);
