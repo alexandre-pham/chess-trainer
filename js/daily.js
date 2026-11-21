@@ -10,7 +10,6 @@ import { renderInsight, wikiQuick } from './explain.js';
 import { enterTraining, startLine, startReview, startReviewKey } from './trainer.js';
 import { fmtMoves, openCoords } from './squares.js';
 import { showPage } from './nav.js';
-import { openReview } from './review.js';
 import { dayKey, fmtDay } from './progress.js';
 
 /* ================= daily practice ================= */
@@ -191,7 +190,7 @@ async function checkGames(){
     const kindOf = gm => `${esc(gm.speed || '')}${gm.rated ? '' : ', casual'}`;
     const link = (gm, name) => `<a href="https://lichess.org/${encodeURIComponent(gm.id)}" target="_blank" rel="noopener">vs ${esc(name)}</a>`;
     const otherHtml = others.length ? `<details style="margin-top:10px"><summary>${others.length} other recent game${others.length > 1 ? 's' : ''}, not in ${esc(S.sel[0])} as ${colorName(S.color)}</summary><ul class="hard">` +
-      others.map(o => `<li><div><div class="hm">${link(o.gm, o.oppName)}, ${kindOf(o.gm)}, ${dateOf(o.gm)}</div><div class="hs">Left out: ${esc(o.why)}.</div></div><button class="btn" data-review="${esc(o.gm.id)}">Review</button></li>`).join('') + '</ul></details>' : '';
+      others.map(o => `<li><div><div class="hm">${link(o.gm, o.oppName)}, ${kindOf(o.gm)}, ${dateOf(o.gm)}</div><div class="hs">Left out: ${esc(o.why)}.</div></div></li>`).join('') + '</ul></details>' : '';
     const note = `<p class="help" style="color:var(--muted);margin:10px 0 0">Your last ${games.length} finished games on Lichess, all speeds. A game still in progress appears once it is over.</p>`;
     if(!rows.length){ out.innerHTML = `<p style="margin:0">None of your last ${games.length} games reached ${esc(S.sel[0])} with you as ${colorName(S.color)}.</p>` + otherHtml + note; return; }
     const yours = rows.filter(r => r.verdict.kind === 'you');
@@ -200,9 +199,8 @@ async function checkGames(){
       const what = v.kind === 'you' ? `You played <b>${r.mv(v.ply)} ${esc(v.played)}</b>; the book continues ${v.best.map(esc).join(', ')}.`
         : v.kind === 'opp' ? `Your opponent left the book with ${r.mv(v.ply)} ${esc(v.played)}. You were on track until then.`
         : v.kind === 'short' ? 'The game ended while you were still in the book.' : `You followed the book until it ended at move ${Math.floor(v.ply / 2) + 1}.`;
-      return `<li><div><div class="hm">${link(r.gm, r.oppName)}, ${kindOf(r.gm)}, ${dateOf(r.gm)}</div><div class="hs" style="font-size:13.5px;color:var(--ink)">${what}</div></div><div class="inline" style="flex:none"><button class="btn primary" data-review="${esc(r.gm.id)}">Review</button>${v.kind === 'you' ? `<button class="btn" data-fix="${i}">Practise</button>` : ''}</div></li>`;
+      return `<li><div><div class="hm">${link(r.gm, r.oppName)}, ${kindOf(r.gm)}, ${dateOf(r.gm)}</div><div class="hs" style="font-size:13.5px;color:var(--ink)">${what}</div></div><div class="inline" style="flex:none"><a class="btn primary" href="https://lichess.org/${encodeURIComponent(r.gm.id)}/${S.color === 'w' ? 'white' : 'black'}" target="_blank" rel="noopener">Analyse on Lichess</a>${v.kind === 'you' ? `<button class="btn" data-fix="${i}">Practise</button>` : ''}</div></li>`;
     }).join('') + '</ul>' + otherHtml + note;
-    out.querySelectorAll('[data-review]').forEach(b => b.onclick = () => { const gm = games.find(x => x.id === b.dataset.review); if(gm) openReview(gm); });
     out.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => {
       const v = rows[+b.dataset.fix].verdict, key = posKey(v.fen);
       // make it a review card that is due now, then practise it

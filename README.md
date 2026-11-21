@@ -19,8 +19,8 @@ Live: https://alexandre-pham.github.io/chess-trainer/
   human-written explanation of the opening from Wikibooks.
 - **Spaced repetition**: every position you must find is a card; missed positions
   come back sooner.
-- **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, your games).
-- **Game review**: your recent Lichess games, annotated, with playable engine lines.
+- **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, and where you left
+  your repertoire in your recent Lichess games).
 - **Squares**: play famous games on the board from their written moves (also the daily warm-up).
 - **Progress**: time per day, calendar, streaks, accuracy per opening.
 - **Accounts**: sign in with Google or with an email and a password (Firebase) to keep your progress on all
@@ -60,7 +60,6 @@ js/trainer.js      training board: game state, judging moves, drawing, navigatio
 js/engine.js       Stockfish in a background worker
 js/squares.js      Squares page: famous games from their written moves
 js/daily.js        Today's plan and the check of your games
-js/review.js       game review and playable lines
 js/progress.js     time tracking, calendar, Progress page
 data/openings.json opening lines and an index of positions
 data/games.json    famous games

@@ -18,7 +18,6 @@ let lastInput = Date.now(), tickN = 0;
 
 function currentActivity(){
   const p = currentPage();
-  if(p === 'review') return 'games';
   if(p === 'coords') return 'squares';
   if(p === 'train') return reviewing || Daily.active === 'review' || Daily.active === 'weak' ? 'review' : 'lines';
   if(p === 'today' && !$('tdExtra').hidden) return 'plans';

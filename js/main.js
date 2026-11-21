@@ -21,7 +21,6 @@ import { init as init_sync } from './sync.js';
 import { init as init_trainer } from './trainer.js';
 import { init as init_squares } from './squares.js';
 import { init as init_daily } from './daily.js';
-import { init as init_review } from './review.js';
 import { init as init_progress } from './progress.js';
 
 /* ================= boot ================= */
@@ -49,5 +48,5 @@ function start(){
 }
 
 // start the app
-init_util(); init_book(); init_setup(); init_settings(); init_sync(); init_trainer(); init_squares(); init_daily(); init_review(); init_progress();
+init_util(); init_book(); init_setup(); init_settings(); init_sync(); init_trainer(); init_squares(); init_daily(); init_progress();
 start();
