@@ -473,9 +473,9 @@ function renderName(){
   $('opSub').textContent = 'Training: ' + S.sel.join(', ');
 }
 function phaseNote(){
-  if(phase === 'stats') return `<span style="color:var(--muted)">Named theory ended in ${esc(phaseEndName ? phaseEndName[1] : 'this line')}. Now following the moves of ${esc(Explorer.label())}, until move ${S.maxMove}.</span>`;
-  if(phase === 'engine') return `<span style="color:var(--muted)">${statsEnd && statsEnd.total ? `Only ${statsEnd.total} games reach this position, so` : 'Theory has ended, so'} the trainer now plays strong engine moves until move ${S.maxMove}.${Explorer.enabled() ? '' : ' Connect Lichess to follow real games instead.'}</span>`;
-  if(phase === 'book' && game && game.history().length && candidates(game.fen()).wide) return `<span style="color:var(--muted)">The lines of ${esc(S.sel[0])} stop here, so the trainer continues with other ${esc(S.sel[0].split(':')[0])} lines.</span>`;
+  if(phase === 'stats') return `<span class="muted">Named theory ended in ${esc(phaseEndName ? phaseEndName[1] : 'this line')}. Now following the moves of ${esc(Explorer.label())}, until move ${S.maxMove}.</span>`;
+  if(phase === 'engine') return `<span class="muted">${statsEnd && statsEnd.total ? `Only ${statsEnd.total} games reach this position, so` : 'Theory has ended, so'} the trainer now plays strong engine moves until move ${S.maxMove}.${Explorer.enabled() ? '' : ' Connect Lichess to follow real games instead.'}</span>`;
+  if(phase === 'book' && game && game.history().length && candidates(game.fen()).wide) return `<span class="muted">The lines of ${esc(S.sel[0])} stop here, so the trainer continues with other ${esc(S.sel[0].split(':')[0])} lines.</span>`;
   return '';
 }
 function candRow(c){

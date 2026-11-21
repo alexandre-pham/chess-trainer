@@ -191,7 +191,7 @@ async function checkGames(){
     const link = (gm, name) => `<a href="https://lichess.org/${encodeURIComponent(gm.id)}" target="_blank" rel="noopener">vs ${esc(name)}</a>`;
     const otherHtml = others.length ? `<details style="margin-top:10px"><summary>${others.length} other recent game${others.length > 1 ? 's' : ''}, not in ${esc(S.sel[0])} as ${colorName(S.color)}</summary><ul class="hard">` +
       others.map(o => `<li><div><div class="hm">${link(o.gm, o.oppName)}, ${kindOf(o.gm)}, ${dateOf(o.gm)}</div><div class="hs">Left out: ${esc(o.why)}.</div></div></li>`).join('') + '</ul></details>' : '';
-    const note = `<p class="help" style="color:var(--muted);margin:10px 0 0">Your last ${games.length} finished games on Lichess, all speeds. A game still in progress appears once it is over.</p>`;
+    const note = `<p class="help">Your last ${games.length} finished games on Lichess, all speeds. A game still in progress appears once it is over.</p>`;
     if(!rows.length){ out.innerHTML = `<p style="margin:0">None of your last ${games.length} games reached ${esc(S.sel[0])} with you as ${colorName(S.color)}.</p>` + otherHtml + note; return; }
     const yours = rows.filter(r => r.verdict.kind === 'you');
     out.innerHTML = `<p style="margin:0 0 8px">${rows.length} recent game${rows.length > 1 ? 's' : ''} in this opening. You left your repertoire in ${yours.length}.</p><ul class="hard">` + rows.map((r, i) => {

@@ -1,4 +1,4 @@
-# Chess Trainer
+# Opening Trainer
 
 Learn chess openings move by move. The trainer plays the other side using the
 moves real players choose, tells you when you leave the main lines and why, and

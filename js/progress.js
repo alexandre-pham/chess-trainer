@@ -115,10 +115,10 @@ function renderProgress(){
   $('pgSum').innerHTML = `
     <div class="card"><div class="big">${acc(rec) != null ? pct(acc(rec)) : '–'}</div><div class="lbl">${recentDays.size ? `First-try accuracy, your last ${recentDays.size} training day${recentDays.size > 1 ? 's' : ''} (${rec.n} moves)` : 'No moves played in this opening yet'}</div>${deltaHtml}</div>
     <div class="card"><div class="big">${today ? pct(today.ok / today.n) : '–'}</div><div class="lbl">Today${today ? ` (${today.n} moves)` : ', no moves yet'}</div></div>
-    <div class="card"><div class="big">${mastered}<span style="font-size:20px;color:var(--muted)"> / ${cs.length}</span></div><div class="lbl">Positions mastered out of those you have met</div></div>`;
+    <div class="card"><div class="big">${mastered}<span class="of"> / ${cs.length}</span></div><div class="lbl">Positions mastered out of those you have met</div></div>`;
   // chart: last 30 training days
   const shown = dayList.slice(-30);
-  if(shown.length < 2){ $('pgChart').innerHTML = '<p class="help" style="color:var(--muted);margin:0">The chart appears after two days of training.</p>'; }
+  if(shown.length < 2){ $('pgChart').innerHTML = '<p class="help m0">The chart appears after two days of training.</p>'; }
   else {
     const W = 760, H = 220, L = 46, B = 30, T = 10, bw = (W - L) / shown.length;
     let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Accuracy per training day">`;
@@ -137,13 +137,13 @@ function renderProgress(){
   }
   $('pgPos').innerHTML = `<div class="pg-pos">
     <div><b>${cs.length}</b>positions met</div><div><b>${learning}</b>still learning</div><div><b>${mastered}</b>mastered</div><div><b>${due}</b>to review now</div></div>
-    <p class="help" style="color:var(--muted);margin:12px 0 0">A position is one place in the opening where you must find the move. Answer it right and it comes back after 1 day, then 3, then about a week, then longer. Miss it and it comes back after 10 minutes. It counts as mastered once it has been answered correctly on several separate days (next review a week or more away).</p>`;
+    <p class="help">A position is one place in the opening where you must find the move. Answer it right and it comes back after 1 day, then 3, then about a week, then longer. Miss it and it comes back after 10 minutes. It counts as mastered once it has been answered correctly on several separate days (next review a week or more away).</p>`;
   const hard = cs.filter(([k,c]) => c.lapses > 0).sort((a,b) => b[1].lapses - a[1].lapses || a[1].due - b[1].due).slice(0, 8);
   $('pgHard').innerHTML = hard.length ? '<ul class="hard">' + hard.map(([k, c]) => {
     const moves = c.path.map((m, i) => i % 2 === 0 ? (i/2 + 1) + '. ' + m : m).join(' ');
     const next = c.due <= now ? 'due now' : 'next review ' + new Date(c.due).toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
     return `<li><div><div class="hm">${esc(moves || 'Starting position')} …</div><div class="hs">${esc(c.name || '')} · missed ${c.lapses} time${c.lapses > 1 ? 's' : ''} · ${next}</div></div><button class="btn" data-practice="${k}">Practise</button></li>`;
-  }).join('') + '</ul>' : '<p class="help" style="color:var(--muted);margin:0">No missed positions yet.</p>';
+  }).join('') + '</ul>' : '<p class="help m0">No missed positions yet.</p>';
   $('pgHard').querySelectorAll('[data-practice]').forEach(b => b.onclick = () => {
     S.sel = [open]; S.color = color; store.set('sel', S.sel); store.set('color', color); rebuildSel();
     enterTraining(); startReviewKey(b.dataset.practice);

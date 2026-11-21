@@ -61,7 +61,7 @@
         </div>
       </div>
       <button class="btn primary" id="start" disabled>Start training</button>
-      <button class="btn" id="reviewSetup" style="width:100%;margin-top:-8px" hidden></button>
+      <button class="btn wide" id="reviewSetup" hidden></button>
       <div class="meta" id="selMeta"></div>
       <div class="progress-line" id="progSetup"></div>
     </aside>
@@ -87,7 +87,7 @@
       <div class="set-row">
         <div class="set-lbl"><b>Account and backup</b><span>Sign in to keep your progress on all your devices, or save it as a file.</span></div>
         <div class="set-ctl">
-          <div id="syncBox" style="width:100%"></div>
+          <div id="syncBox" class="full"></div>
           <div class="inline">
             <button class="btn" id="exportBtn">Export progress</button>
             <button class="btn" id="importBtn">Import progress</button>
@@ -196,12 +196,12 @@
     <div class="pg-panel">
       <div class="cal-top"><h2 id="tmCalTitle"></h2><div><button class="btn quiet" id="tmPrev" aria-label="Previous month">◀</button><button class="btn quiet" id="tmNext" aria-label="Next month">▶</button></div></div>
       <div class="cal" id="tmCal"></div>
-      <p class="help" id="tmCalSum" style="color:var(--muted);margin:10px 0 4px"></p>
+      <p class="help" id="tmCalSum"></p>
       <div class="tm-day" id="tmDay"></div>
     </div>
-    <h2 class="pg-h" style="font-size:28px;margin-top:28px">By opening</h2>
-    <div class="row" style="margin-bottom:18px">
-      <div class="field grow" style="margin:0">
+    <h2 class="pg-h pg-h2">By opening</h2>
+    <div class="row pg-pick">
+      <div class="field grow">
         <label class="field-label" for="pgOpening">Opening</label>
         <select id="pgOpening" class="big"></select>
       </div>
