@@ -17,7 +17,6 @@ const redirectUri = () => location.origin + location.pathname;
 function setToken(tok, user){
   S.token = tok || ''; S.user = user || '';
   store.set('token', S.token); store.set('user', S.user);
-  $('lichessToken').value = S.user ? '' : S.token;
   Explorer.reset(); renderAuth(); checkExplorer();
 }
 
@@ -33,7 +32,7 @@ function renderAuth(){
     const canOAuth = location.protocol === 'http:' || location.protocol === 'https:';
     el.innerHTML = `<button class="btn lichess-btn" id="lichessIn" ${canOAuth ? '' : 'disabled'}>Connect with Lichess</button>` +
       (canOAuth ? '<p class="help">Takes you to the Lichess sign-in page and brings you back here. Your password goes to Lichess only; this page receives a read-only key that stays in this browser.</p>'
-       : `<p class="help">Signing in needs the page to be opened through a web address, not as a file. In the folder that contains this file, run <code>python3 -m http.server 8000</code>, then open <a href="http://localhost:8000/${esc(location.pathname.split('/').pop())}">http://localhost:8000/${esc(location.pathname.split('/').pop())}</a>. Your progress is stored per address, so use Export and Import below to bring it over. You can also paste a personal token instead.</p>`);
+       : `<p class="help">Signing in needs the page to be opened through a web address, not as a file. In the folder that contains this file, run <code>python3 -m http.server 8000</code>, then open <a href="http://localhost:8000/${esc(location.pathname.split('/').pop())}">http://localhost:8000/${esc(location.pathname.split('/').pop())}</a>. Your progress is stored per address, so use Export and Import below to bring it over.</p>`);
     if(canOAuth) $('lichessIn').onclick = lichessLogin;
   }
 }
@@ -112,8 +111,6 @@ function init(){
       await finishLogin(code, state);
     }, 0);
   })();
-  $('lichessToken').value = S.user ? '' : S.token;
-  $('lichessToken').onchange = e => setToken(e.target.value.trim(), '');
   $('exportBtn').onclick = () => {
     const blob = new Blob([JSON.stringify({version: 5, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog})], {type: 'application/json'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'opening-trainer-progress.json'; a.click();

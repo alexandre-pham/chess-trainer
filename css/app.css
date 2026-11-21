@@ -185,8 +185,6 @@ select.big{width:100%;font-family:var(--serif);font-size:18px;padding:10px 12px;
 .lichess-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
 .who{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:8px}
 .who b{font-family:var(--serif);font-size:17px;font-weight:500}
-details.adv{margin-top:8px;font-size:12.5px;color:var(--muted)}
-details.adv summary{cursor:pointer;margin-bottom:6px}
 :is(.side,.settings) select.small{width:100%;font-size:13.5px;padding:8px 10px;margin-bottom:6px;min-width:0}
 :is(.side,.settings) .bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin:4px 0 2px}
 :is(.side,.settings) .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
@@ -326,7 +324,6 @@ header .nav-item[hidden]{display:inline-block !important}
 .settings select.small{max-width:420px;margin:0}
 .settings .lichess-btn{width:auto}
 .settings .help{margin:0}
-.settings details.adv{margin:0;width:100%}
 .settings .inline{gap:8px}
 #ratingChoice{margin:0 !important}
 /* train */
