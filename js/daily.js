@@ -11,6 +11,7 @@ import { enterTraining, startLine, startReview, startReviewKey } from './trainer
 import { fmtMoves, openCoords } from './squares.js';
 import { showPage } from './nav.js';
 import { dayKey, fmtDay } from './progress.js';
+import { repertoireExit } from './logic.js';
 
 /* ================= daily practice ================= */
 // A plan for each day, built from widely shared study advice: short daily sessions, warm up, clear your reviews
@@ -165,22 +166,8 @@ async function checkGames(){
       const base = {gm, oppName};
       if(gm.variant && gm.variant !== 'standard'){ others.push({...base, why: `${gm.variant} variant`}); continue; }
       if(myColor !== S.color){ others.push({...base, why: `you had ${colorName(myColor)}${opening ? ` (${opening})` : ''}`}); continue; }
-      const g = new Chess();
-      let entered = false, oppIn = false, verdict = null, outAt = null;
-      for(let i = 0; i < sans.length && i < 40; i++){
-        const fen = g.fen(), c = candidates(fen);
-        if(!c.length){ if(entered) verdict = {kind: 'end', ply: i}; break; }
-        const mine = g.turn() === S.color, played = sans[i];
-        if(!c.some(x => x.san === played)){
-          if(!mine && !oppIn){ outAt = {ply: i, played}; break; }   // the opponent avoided your opening right away
-          verdict = mine ? {kind: 'you', ply: i, fen, played, best: c.slice(0, 3).map(x => x.san), path: sans.slice(0, i)} : {kind: 'opp', ply: i, played};
-          break;
-        }
-        if(mine) entered = true; else oppIn = true;
-        g.move(played);
-      }
-      if(!verdict && entered && oppIn) verdict = {kind: 'short', ply: Math.min(sans.length, 40)};  // the game ended while still in the book
-      if(!verdict || !entered || !oppIn){
+      const {verdict, outAt} = repertoireExit(sans, S.color, candidates, Chess);
+      if(!verdict){
         others.push({...base, why: outAt ? `your opponent avoided your opening with ${mv(outAt.ply)} ${outAt.played}${opening ? ` (${opening})` : ''}` : sans.length < 2 ? 'too short' : `a different opening${opening ? `: ${opening}` : ''}`});
         continue;
       }

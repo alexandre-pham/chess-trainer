@@ -8,28 +8,17 @@ import { Daily } from './daily.js';
 import { timeLog } from './progress.js';
 import { firebaseConfig } from './firebase-config.js';
 import { currentPage } from './nav.js';
+import { mergeCards, mergeTime, unionInto } from './logic.js';
 
 /* ---- merging progress from another device or file: newest card wins, histories are combined ---- */
 function mergeProgress(data){
-  let changed = false;
-  for(const [k, c] of Object.entries(data.cards || {})) if(!cards[k] || (c.seen || 0) > (cards[k].seen || 0)){ cards[k] = c; changed = true; }
-  if(Array.isArray(data.log)){
-    const key = e => e[0] + '|' + e[1] + '|' + e[2], seen = new Set(moveLog.map(key));
-    for(const e of data.log) if(!seen.has(key(e))){ moveLog.push(e); seen.add(key(e)); changed = true; }
-    if(changed){ moveLog.sort((a,b) => a[0] - b[0]); if(moveLog.length > 30000) moveLog.splice(0, moveLog.length - 30000); }
-  }
-  // coordinate answers and speed rounds: combine both histories
-  const unionInto = (arr, extra, keyf) => { const seen = new Set(arr.map(keyf)); let add = false; for(const e of extra || []) if(!seen.has(keyf(e))){ arr.push(e); seen.add(keyf(e)); add = true; } if(add) arr.sort((a,b) => a[0] - b[0]); return add; };
+  let changed = mergeCards(cards, data.cards);
+  if(Array.isArray(data.log) && unionInto(moveLog, data.log, e => e[0] + '|' + e[1] + '|' + e[2], 30000)) changed = true;
+  // square answers and old speed rounds: combine both histories
   if(typeof coordLog !== 'undefined'){
-    if(unionInto(coordLog, data.coordLog, e => e[0] + '|' + e[2])){ if(coordLog.length > 30000) coordLog.splice(0, coordLog.length - 30000); store.set('coordLog', coordLog); changed = true; }
+    if(unionInto(coordLog, data.coordLog, e => e[0] + '|' + e[2], 30000)){ store.set('coordLog', coordLog); changed = true; }
     if(unionInto(coordRounds, data.coordRounds, e => e[0] + '|' + e[1])){ store.set('coordRounds', coordRounds); changed = true; }
-    if(data.time && typeof data.time === 'object'){
-      // each device's record: keep the larger count per day and activity
-      for(const [dev, days] of Object.entries(data.time)){ const mine = timeLog[dev] = timeLog[dev] || {};
-        for(const [d, acts] of Object.entries(days || {})){ const md = mine[d] = mine[d] || {};
-          for(const [a, sec] of Object.entries(acts || {})) if((md[a] || 0) < sec){ md[a] = sec; changed = true; } } }
-      if(changed) store.set('time', timeLog);
-    }
+    if(data.time && typeof data.time === 'object' && mergeTime(timeLog, data.time)){ store.set('time', timeLog); changed = true; }
     if(Array.isArray(data.dailyDays)){ const add = data.dailyDays.filter(d => !Daily.days.includes(d)); if(add.length){ Daily.days.push(...add); Daily.days.sort(); store.set('dailyDays', Daily.days); changed = true; } }
   }
   if(changed){ store.set('cards', cards); store.set('log', moveLog); }

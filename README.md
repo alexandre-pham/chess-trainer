@@ -37,6 +37,15 @@ python3 -m http.server 8000
 
 No build step and no dependencies to install.
 
+## Tests
+
+The pure logic (spaced repetition, merging progress, checking your games against your
+repertoire) lives in `js/logic.js` and has tests that need only Node 22 or later:
+
+```bash
+node --test
+```
+
 ## Code layout
 
 ```
@@ -48,6 +57,7 @@ js/util.js         small helpers, browser storage
 js/data.js         loads the opening book and piece images
 js/book.js         opening families, selection and settings, book moves
 js/srs.js          spaced repetition cards and answer log
+js/logic.js        pure logic: review intervals, merging progress, your games vs your repertoire
 js/setup.js        Openings page
 js/settings.js     Settings page: Lichess sign-in, statistics, backup
 js/sync.js         merging progress, accounts and sync (Firebase Auth + Firestore)
@@ -64,6 +74,7 @@ js/progress.js     time tracking, calendar, Progress page
 data/openings.json opening lines and an index of positions
 data/games.json    famous games
 vendor/            chess.js and Stockfish
+tests/             tests of js/logic.js (node --test)
 pieces/            piece images
 ```
 

@@ -3,10 +3,10 @@ import { posKey, store } from './util.js';
 import { S, selFamilies } from './book.js';
 import { Sync } from './sync.js';
 import { phase } from './trainer.js';
+import { schedule } from './logic.js';
 
 /* ================= spaced repetition ================= */
 // One card per position where you have to find the move. SM-2 style intervals.
-const DAY = 86400000;
 let cards = store.get('cards', {});
 // every first attempt at a position: [time, opening, color, correct 1/0, phase]
 let moveLog = store.get('log', []);
@@ -22,9 +22,7 @@ function grade(key, result, ctx){
   const now = Date.now();
   const c = cards[key] || {path: ctx.path, color: ctx.color, fams: [], name: ctx.name, ease: 2.5, ivl: 0, reps: 0, lapses: 0, due: 0};
   c.fams = [...new Set([...(c.fams || []), ...(ctx.fams || [])])];
-  if(result === 'again'){ c.lapses++; c.reps = 0; c.ivl = 0; c.ease = Math.max(1.3, c.ease - 0.2); c.due = now + 10 * 60000; }
-  else if(result === 'hard'){ c.ivl = Math.max(1, Math.round(c.ivl * 1.2)); c.ease = Math.max(1.3, c.ease - 0.15); c.due = now + c.ivl * DAY; }
-  else { c.reps++; c.ivl = c.reps === 1 ? 1 : c.reps === 2 ? 3 : Math.max(c.ivl + 1, Math.round(c.ivl * c.ease)); c.ease = Math.min(3, c.ease + 0.05); c.due = now + c.ivl * DAY; }
+  schedule(c, result, now);
   c.seen = now; if(ctx.name) c.name = ctx.name; cards[key] = c; saveCards();
 }
 function relevantCards(){
