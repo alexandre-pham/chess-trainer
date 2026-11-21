@@ -406,6 +406,12 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
   header.top{position:relative}
   #toSettings{position:absolute;top:6px;right:0;padding:8px 0;border-bottom:0}
   .train{grid-template-columns:1fr}
+  /* one column: what to do and the feedback come right under the board */
+  .train .panel{display:flex;flex-direction:column}
+  .train .panel > .daybar{order:-3}
+  .train .panel > .status,.train .panel > .c-prompt{order:-2}
+  .train .panel > .actions{order:-1}
+  #coords > .lede{display:none}
   .setup{grid-template-columns:minmax(0,1fr)}
   .side .row{flex-wrap:wrap}
 }
@@ -414,6 +420,9 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
   .mainnav{justify-content:space-between}
   .td-step{display:grid;grid-template-columns:32px minmax(0,1fr);gap:6px 12px}
   .td-step > div:last-child{grid-column:2}
+  #coords > .pg-h{display:none}
+  #coords > .c-top{gap:12px;margin-top:12px}
+  #coords .seg button{padding:7px 10px}
 }
 @media (max-width:360px){
   .nav-item{padding:12px 4px 10px;font-size:13px}
