@@ -20,6 +20,8 @@ let punish = null, punishDone = null;
 let sandbox = null;
 // keep playing past the move limit, to the end of the game
 let playOn = false;
+// you ended the line yourself (resigned, or a clear win): {ev: Stockfish's verdict for you}
+let ended = null;
 const userMarks = [];
 const stats = {good:0, bad:0};
 const files = 'abcdefgh';
@@ -30,7 +32,7 @@ function resetLine(){
   sessionId++; redo = [];
   game = new Chess(); phase = 'book'; phaseEndName = null; userMarks.length = 0; lastFeedback = null; explainInfo = null;
   lastNamed = null; wrongInfo = null; selectedSq = null; hintOn = false; arrowsList = []; failedHere = null; reviewing = null;
-  punish = null; punishDone = null; sandbox = null; playOn = false;
+  punish = null; punishDone = null; sandbox = null; playOn = false; ended = null;
 }
 function startLine(){ resetLine(); updateName(); renderAll(); nextTurn(); }
 function startReview(){
@@ -621,7 +623,17 @@ function renderName(){
 }
 const untilText = () => S.maxMove && !playOn ? `until move ${S.maxMove}` : 'until the end of the game';
 // after a finished line: carry on past the move limit (or past the end of the book) against real moves, then Stockfish
-function keepPlaying(){ playOn = true; lastFeedback = null; nextTurn(); }
+function keepPlaying(){ playOn = true; ended = null; lastFeedback = null; nextTurn(); }
+// end the line now, then let Stockfish say how the position stands
+function endHere(){
+  if(!game || !game.history().length) return;
+  sessionId++; ended = {ev: null}; const sid = sessionId; finish();
+  waitEngine().then(() => Engine.available() ? Engine.analyse(game.fen(), 12, 1) : null).then(r => {
+    if(sid !== sessionId || !ended || !r) return;
+    ended.ev = game.turn() === S.color ? r.cp : -r.cp; renderStatus();
+  });
+}
+const standing = ev => ev >= 300 ? 'a winning position' : ev >= 100 ? 'clearly better for you' : ev > -100 ? 'about equal' : ev > -300 ? 'clearly worse for you' : 'a lost position';
 const resultText = () => game.in_checkmate() ? (game.turn() === S.color ? 'Checkmate: you lost this one.' : 'Checkmate: you won.') : game.in_draw() ? 'The game ended in a draw.' : 'The game is over.';
 function phaseNote(){
   if(phase === 'stats') return `<span class="muted">Named theory ended in ${esc(phaseEndName ? phaseEndName[1] : 'this line')}. Now following the moves of ${esc(Explorer.label())}, ${untilText()}.</span>`;
@@ -691,10 +703,11 @@ function renderStatus(){
     const due = dueCards().length; if(due) acts.push([`Review ${due} due position${due > 1 ? 's' : ''}`, startReview]);
     acts.push(['Explain the last move', explainLast]);
   } else if(status === 'done'){
-    cls += ' done'; title = game.game_over() ? 'Game over' : 'Line complete';
-    body = game.game_over() ? resultText() + ` After ${Math.ceil(game.history().length / 2)} moves${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.` : phase === 'book' ? (lastNamed ? `You reached the end of the known theory in <em>${esc(lastNamed[1])}</em>.` : 'You reached the end of the known theory.')
+    cls += ' done'; title = ended ? 'Line ended' : game.game_over() ? 'Game over' : 'Line complete';
+    body = ended ? `You ended the line after move ${Math.ceil(game.history().length / 2)}. ` + (ended.ev == null ? 'Stockfish is looking at the final position…' : `Stockfish: ${fmtEval(ended.ev)} for you, ${standing(ended.ev)}.`)
+      : game.game_over() ? resultText() + ` After ${Math.ceil(game.history().length / 2)} moves${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.` : phase === 'book' ? (lastNamed ? `You reached the end of the known theory in <em>${esc(lastNamed[1])}</em>.` : 'You reached the end of the known theory.')
       : `You played through move ${moveNo() - (game.turn() === 'w' ? 1 : 0)}${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.`;
-    if(S.punish && Explorer.enabled()) body += ' No common mistake came up in this line.';
+    if(S.punish && Explorer.enabled() && !ended) body += ' No common mistake came up in this line.';
     const due = dueCards().length;
     acts = due ? [[`Review ${due} due position${due > 1 ? 's' : ''}`, startReview, 'primary'], ['Play a new line', startLine]] : [['Play another line', startLine, 'primary']];
     // inside today's plan: offer the step's own next action first
@@ -717,7 +730,7 @@ function renderStatus(){
     const p = punish, h = game.history(), prev = new Chess(); h.slice(0, -1).forEach(x => prev.move(x));
     title = 'Punish the mistake: ' + esc(mvNo(prev.fen(), p.san));
     body = `${esc(p.san)} is a common mistake at your level: it is played in ${pct(p.share)} of games here, and players who meet it score ${pct(p.score)} instead of ${pct(p.usual)}. Stockfish: you are now ${fmtEval(p.best)}. Find the move that punishes it.`;
-    acts = [['Hint', toggleHint], ['Explain the last move', explainLast], ['Restart line', startLine]];
+    acts = [['Hint', toggleHint], ['Explain the last move', explainLast], ['Restart line', startLine], ['End here', endHere]];
   } else {
     title = reviewing ? 'Find the move you missed before' : redo.length ? `Your move, replaying from move ${moveNo()}` : 'Your move';
     body = redo.length ? `Play a move to continue from here. It is judged as usual, and the later moves are replaced. Use ▶ to step forward instead.<br>${phaseNote()}`
@@ -725,6 +738,7 @@ function renderStatus(){
     acts = [['Hint', toggleHint]];
     acts.push(['Explain the last move', explainLast, '', !game.history().length]);
     acts.push(['Restart line', startLine]);
+    if(game.history().length && !redo.length) acts.push(['End here', endHere]);
   }
   st.className = cls;
   st.innerHTML = `${tag}<div class="st-title">${title}</div>${body ? `<div class="st-body">${body}</div>` : ''}`;
