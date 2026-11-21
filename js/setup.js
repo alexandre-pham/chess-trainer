@@ -1,11 +1,11 @@
 // The Openings page: search list, variation, colour, mini board.
 import { $, esc, store } from './util.js';
 import { LINES, PIECES } from './data.js';
-import { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, matches, rebuildSel, selFlags } from './book.js';
+import { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, matches, oppChoices, rebuildSel, selFlags } from './book.js';
 import { progressCounts } from './srs.js';
 
 /* ================= setup UI ================= */
-function renderColor(){ $('asW').setAttribute('aria-pressed', S.color === 'w'); $('asB').setAttribute('aria-pressed', S.color === 'b'); renderSel(); renderMini(); }
+function renderColor(){ $('asW').setAttribute('aria-pressed', S.color === 'w'); $('asB').setAttribute('aria-pressed', S.color === 'b'); renderOpp(); renderSel(); renderMini(); }
 
  
  
@@ -43,6 +43,20 @@ function renderPickers(){
   $('preview').innerHTML = l ? `<b>${esc(l[0])}</b>${esc(l[2].split(' ').map((m, i) => i % 2 === 0 ? (i/2 + 1) + '. ' + m : m).join(' '))}` : '';
 }
 
+// the opponent's opening: any opening that starts like yours, or one of its variations
+function setOpp(p){ S.opp = p; store.set('opp', p); renderOpp(); renderSel(); }
+function renderOpp(){
+  const list = S.sel.length ? oppChoices() : [];
+  if(S.opp && !list.includes(S.opp.split(':')[0])){ S.opp = ''; store.set('opp', ''); }
+  const fam = S.opp.split(':')[0], f = fam && FAM.get(fam);
+  $('oppFam').disabled = !S.sel.length;
+  $('oppFam').innerHTML = '<option value="">Anything: the moves real players choose</option>' + list.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  $('oppFam').value = fam;
+  $('oppVar').hidden = !f || !f.vars.size; $('oppHelp').hidden = !S.opp;
+  if(f) $('oppVar').innerHTML = `<option value="${esc(fam)}">All variations (${f.lines.length} lines)</option>` +
+    [...f.vars.entries()].sort((a,b) => b[1] - a[1]).map(([v, n]) => `<option value="${esc(v)}">${esc(v.slice(fam.length + 2))} (${n} line${n > 1 ? 's' : ''})</option>`).join('');
+  if(f) $('oppVar').value = S.opp;
+}
 function renderSel(){
   rebuildSel();
   const n = selFlags.reduce((a,b) => a + b, 0);
@@ -55,7 +69,7 @@ function renderSel(){
   $('reviewSetup').textContent = `Review ${pc.due} due position${pc.due > 1 ? 's' : ''}`;
   $('progSetup').innerHTML = pc.total ? `<span><b>${pc.total}</b>seen</span><span><b>${pc.known}</b>mastered</span><span><b>${pc.due}</b>to review</span>` : '';
 }
-function renderSetup(){ renderPickers(); renderSel(); renderOpList(); renderMini(); }
+function renderSetup(){ renderPickers(); renderOpp(); renderSel(); renderOpList(); renderMini(); }
 
 /* --- opening search list --- */
 const FAM_INFO = new Map();
@@ -134,6 +148,8 @@ function init(){
   $('useEngine').onchange = e => { S.useEngine = +e.target.value; store.set('useEngine', S.useEngine); };
   $('famSel').onchange = e => setSel(e.target.value);
   $('varSel').onchange = e => setSel(e.target.value);
+  $('oppFam').onchange = e => setOpp(e.target.value);
+  $('oppVar').onchange = e => setOpp(e.target.value);
   FAM.forEach((f, fam) => {
     const best = f.lines.reduce((a, b) => LINE_PLIES[b] < LINE_PLIES[a] ? b : a, f.lines[0]);
     const san = LINES[best][2], e = [...f.ecos].sort();

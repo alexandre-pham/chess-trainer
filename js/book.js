@@ -23,6 +23,8 @@ const QUICK = ["Sicilian Defense","French Defense","Caro-Kann Defense","Scandina
 /* ================= settings ================= */
 const S = {
   color: store.get('color','w'), sel: store.get('sel', []),
+  // the opponent's opening or variation ('' = whatever real players choose)
+  opp: store.get('opp', ''),
   maxMove: store.get('maxMove', 15), useEngine: store.get('useEngine', 1),
   token: store.get('token', ''), exDb: store.get('exDb', 'lichess'), ratings: store.get('ratings', [1600,1800,2000]),
   speeds: store.get('speeds', ['blitz', 'rapid', 'classical']),
@@ -32,14 +34,27 @@ const S = {
 
 let selFlags = new Uint8Array(LINES.length);
 let famFlags = new Uint8Array(LINES.length);
+let oppFlags = new Uint8Array(LINES.length);
+let myMoves = new Map();  // your side's moves in your lines: how many lines play each
 const LINE_PLIES = LINES.map(l => l[2].split(' ').length);
+// with an opponent's line, the book is your lines plus the opponent's: they play only theirs, you play either
 function rebuildSel(){
-  selFlags = new Uint8Array(LINES.length); famFlags = new Uint8Array(LINES.length);
-  const fams = S.sel.map(p => p.split(':')[0]);
+  selFlags = new Uint8Array(LINES.length); famFlags = new Uint8Array(LINES.length); oppFlags = new Uint8Array(LINES.length);
+  const fams = S.sel.map(p => p.split(':')[0]), oppFam = S.opp.split(':')[0];
+  myMoves = new Map();
+  const mine = S.color === 'w' ? 0 : 1;
   LINES.forEach((l,i) => {
-    if(S.sel.some(p => matches(l[1], p))) selFlags[i] = 1;
+    if(S.sel.some(p => matches(l[1], p))){ selFlags[i] = 1; new Set(l[2].split(' ').filter((m, j) => j % 2 === mine)).forEach(m => myMoves.set(m, (myMoves.get(m) || 0) + 1)); }
     if(fams.some(f => matches(l[1], f))) famFlags[i] = 1;  // the whole opening family, used when your variation's lines stop
+    if(S.opp && matches(l[1], S.opp)){ oppFlags[i] = selFlags[i] = 1; }
+    if(S.opp && matches(l[1], oppFam)) famFlags[i] = 1;
   });
+}
+// openings the opponent can choose against your selection: those starting with your opening's first move (yours and theirs as Black)
+function oppChoices(){
+  const n = S.color === 'w' ? 1 : 2, starts = new Set();
+  LINES.forEach(l => { if(S.sel.some(p => matches(l[1], p))) starts.add(l[2].split(' ').slice(0, n).join(' ')); });
+  return FAM_NAMES.filter(f => FAM.get(f).lines.some(i => starts.has(LINES[i][2].split(' ').slice(0, n).join(' '))));
 }
 const selFamilies = () => new Set(S.sel.map(p => p.split(':')[0]));
 
@@ -52,11 +67,12 @@ function candidates(fen){
   const run = flags => {
     const out = [];
     for(const [san, lst] of moves){
-      let w = 0, best = -1, rem = 0;
-      for(const i of lst) if(flags[i]){ w++; rem = Math.max(rem, LINE_PLIES[i] - ply - 1); if(best < 0 || LINES[i][2].length < LINES[best][2].length) best = i; }
-      if(w) out.push({san, w, line: best, rem});
+      let w = 0, best = -1, rem = 0, ow = 0;
+      for(const i of lst) if(flags[i]){ w++; ow += oppFlags[i]; rem = Math.max(rem, LINE_PLIES[i] - ply - 1); if(best < 0 || LINES[i][2].length < LINES[best][2].length) best = i; }
+      // ow: how many of these lines are the opponent's chosen opening; fit: how many of your own lines play the move
+      if(w) out.push({san, w, line: best, rem, ow, fit: S.opp ? myMoves.get(san) || 0 : 0});
     }
-    return out.sort((a,b) => b.w - a.w);
+    return out.sort((a,b) => (b.fit - a.fit) || (b.w - a.w));
   };
   let out = run(selFlags); out.wide = false;
   if(!out.length){ out = run(famFlags); out.wide = out.length > 0; }
@@ -70,7 +86,14 @@ function nameAfter(fen, san, fallbackIdx){
 }
 const fenAfter = (fen, san) => { const g = new Chess(fen); g.move(san); return g.fen(); };
 
-export { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, bookMoves, candidates, famFlags, fenAfter, matches, nameAfter, rebuildSel, selFamilies, selFlags, shortestLine };
+// whether a position after a move is named in the opponent's chosen opening (steers them once the book ends)
+function inOppOpening(fen){
+  if(!S.opp) return false;
+  const p = POS[posKey(fen)];
+  return !!(p && p[1] && matches(LINES[p[0]][1], S.opp.split(':')[0]));
+}
+
+export { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, bookMoves, candidates, famFlags, fenAfter, inOppOpening, matches, nameAfter, oppChoices, rebuildSel, selFamilies, selFlags, shortestLine };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

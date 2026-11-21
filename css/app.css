@@ -52,6 +52,7 @@ header.top{display:flex;align-items:baseline;justify-content:space-between;gap:1
 .btn.wide{width:100%;margin-top:-8px}
 .pg-h.pg-h2{font-size:28px;margin-top:28px}
 .pg-pick{margin-bottom:18px}
+select.opp-var{margin-top:8px}
 .pg-pick .field.grow{margin:0}
 .of{font-size:20px;color:var(--muted)}
 

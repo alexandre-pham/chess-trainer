@@ -1,7 +1,7 @@
 // The training board: game state, judging your moves, opponent moves, drawing, navigation.
 import { $, esc, pct, posKey, store } from './util.js';
 import { LINES, PIECES, POS } from './data.js';
-import { S, bookMoves, candidates, fenAfter, nameAfter, selFamilies, shortestLine } from './book.js';
+import { S, bookMoves, candidates, fenAfter, inOppOpening, nameAfter, selFamilies, shortestLine } from './book.js';
 import { cards, dueCards, grade, logMove, progressCounts, saveCards, srsMult } from './srs.js';
 import { Explorer, minGames, scoreFor } from './explorer.js';
 import { explainLast, explainMistake, renderInsight } from './explain.js';
@@ -106,7 +106,10 @@ async function oppMove(){
   const sid = sessionId, fen = game.fen();
   let options = [];
   if(phase === 'book'){
-    const c = candidates(fen), ex = await Explorer.get(fen);
+    let c = candidates(fen);
+    // against a chosen opening, the opponent keeps to its lines, preferring moves that mostly lead there (not transpositions)
+    if(S.opp){ const oc = c.filter(x => x.ow), main = oc.filter(x => x.ow * 2 >= x.w); c = main.length ? main : oc.length ? oc : c; }
+    const ex = await Explorer.get(fen);
     if(sid !== sessionId) return;
     const deepest = Math.max(...c.map(x => x.rem));
     options = c.map(x => {
@@ -114,12 +117,16 @@ async function oppMove(){
       // avoid side lines whose theory stops right away when deeper lines exist
       // (with Lichess statistics, real game frequencies decide instead)
       const dead = !ex && deepest >= 5 && x.rem <= 3 ? 0.15 : 1;
-      return {san: x.san, w: (ex ? Math.max(em ? em.n : 0, ex.total * 0.002, 1) : x.w) * dead};
+      return {san: x.san, w: (ex ? Math.max(em ? em.n : 0, ex.total * 0.002, 1) : S.opp && x.ow ? x.ow : x.w) * dead};
     });
   } else if(phase === 'stats'){
     const ex = await Explorer.get(fen);
     if(sid !== sessionId) return;
-    if(ex) options = ex.moves.filter((m, i) => i === 0 || m.share >= 0.03).map(m => ({san: m.san, w: m.n}));
+    if(ex){
+      // against a chosen opening, prefer the real moves that stay in it
+      const steer = S.opp ? ex.moves.filter(m => m.share >= 0.01 && inOppOpening(fenAfter(fen, m.san))) : [];
+      options = (steer.length ? steer : ex.moves.filter((m, i) => i === 0 || m.share >= 0.03)).map(m => ({san: m.san, w: m.n}));
+    }
   } else {
     await waitEngine();
     if(!Engine.available()){ if(sid === sessionId) finish(); return; }
@@ -478,7 +485,7 @@ function renderName(){
   if(lastNamed){ el.textContent = lastNamed[1]; $('opEco').textContent = lastNamed[0]; }
   else { el.textContent = 'Starting position'; $('opEco').innerHTML = '&nbsp;'; }
   el.classList.toggle('fresh', nameFresh); if(nameFresh){ nameFresh = false; setTimeout(() => el.classList.remove('fresh'), 1200); }
-  $('opSub').textContent = 'Training: ' + S.sel.join(', ');
+  $('opSub').textContent = 'Training: ' + S.sel.join(', ') + (S.opp ? ', against the ' + S.opp : '');
 }
 function phaseNote(){
   if(phase === 'stats') return `<span class="muted">Named theory ended in ${esc(phaseEndName ? phaseEndName[1] : 'this line')}. Now following the moves of ${esc(Explorer.label())}, until move ${S.maxMove}.</span>`;

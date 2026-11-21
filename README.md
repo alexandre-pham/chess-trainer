@@ -10,6 +10,9 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 
 - **Openings**: 3,865 named lines from the Lichess opening book, searchable by
   name, ECO code or moves. Train as White or Black, a whole opening or one variation.
+- **Opponent's line**: choose what your opponent plays against your opening (for example the
+  King's Indian against your Catalan). The trainer keeps to that opening's lines, and the
+  moves that fit your own opening are suggested first.
 - **Move statistics**: with a Lichess connection, the opponent plays the moves
   that real players choose (Lichess players by rating and time control, or masters).
 - **Stockfish**: checks your moves once theory ends, and analyses your games. An optional
