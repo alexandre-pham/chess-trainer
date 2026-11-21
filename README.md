@@ -13,6 +13,9 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Opponent's line**: choose what your opponent plays against your opening (for example the
   King's Indian against your Catalan). The trainer keeps to that opening's lines, and the
   moves that fit your own opening are suggested first.
+- **Punish mistakes**: the opponent plays the mistakes players at your level often make
+  (common in the Lichess statistics for your ratings, confirmed by Stockfish), and you find
+  the move that punishes them. Missed punishments come back for review.
 - **Move statistics**: with a Lichess connection, the opponent plays the moves
   that real players choose (Lichess players by rating and time control, or masters).
 - **Stockfish**: checks your moves once theory ends, and analyses your games. An optional

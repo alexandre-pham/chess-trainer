@@ -3,6 +3,7 @@ import { $, esc, store } from './util.js';
 import { LINES, PIECES } from './data.js';
 import { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, matches, oppChoices, rebuildSel, selFlags } from './book.js';
 import { progressCounts } from './srs.js';
+import { Explorer } from './explorer.js';
 
 /* ================= setup UI ================= */
 function renderColor(){ $('asW').setAttribute('aria-pressed', S.color === 'w'); $('asB').setAttribute('aria-pressed', S.color === 'b'); renderOpp(); renderSel(); renderMini(); }
@@ -57,6 +58,14 @@ function renderOpp(){
     [...f.vars.entries()].sort((a,b) => b[1] - a[1]).map(([v, n]) => `<option value="${esc(v)}">${esc(v.slice(fam.length + 2))} (${n} line${n > 1 ? 's' : ''})</option>`).join('');
   if(f) $('oppVar').value = S.opp;
 }
+// punish mode: the opponent plays the mistakes players at your level often make
+function renderPunish(){
+  $('punishSeg').innerHTML = [[0, 'Plays well'], [1, 'Makes common mistakes']].map(([v, l]) => `<button data-pun="${v}" aria-pressed="${S.punish === v}">${l}</button>`).join('');
+  $('punishSeg').querySelectorAll('[data-pun]').forEach(b => b.onclick = () => { S.punish = +b.dataset.pun; store.set('punish', S.punish); renderPunish(); });
+  $('punishHelp').hidden = !S.punish;
+  $('punishHelp').textContent = Explorer.enabled() ? 'When players at your level often get a move wrong here, the opponent plays it and you find the punishment. The line ends there.'
+    : 'Connect Lichess in Settings first: its statistics show which mistakes players at your level make.';
+}
 function renderSel(){
   rebuildSel();
   const n = selFlags.reduce((a,b) => a + b, 0);
@@ -69,7 +78,7 @@ function renderSel(){
   $('reviewSetup').textContent = `Review ${pc.due} due position${pc.due > 1 ? 's' : ''}`;
   $('progSetup').innerHTML = pc.total ? `<span><b>${pc.total}</b>seen</span><span><b>${pc.known}</b>mastered</span><span><b>${pc.due}</b>to review</span>` : '';
 }
-function renderSetup(){ renderPickers(); renderOpp(); renderSel(); renderOpList(); renderMini(); }
+function renderSetup(){ renderPickers(); renderOpp(); renderPunish(); renderSel(); renderOpList(); renderMini(); }
 
 /* --- opening search list --- */
 const FAM_INFO = new Map();

@@ -25,6 +25,8 @@ const S = {
   color: store.get('color','w'), sel: store.get('sel', []),
   // the opponent's opening or variation ('' = whatever real players choose)
   opp: store.get('opp', ''),
+  // punish mode: the opponent plays the common mistakes of your level
+  punish: store.get('punish', 0),
   maxMove: store.get('maxMove', 15), useEngine: store.get('useEngine', 1),
   token: store.get('token', ''), exDb: store.get('exDb', 'lichess'), ratings: store.get('ratings', [1600,1800,2000]),
   speeds: store.get('speeds', ['blitz', 'rapid', 'classical']),

@@ -118,4 +118,23 @@ function normChesscomGame(g, me, Chess){
     oppName: opp.username || 'Anonymous', speed: g.time_class || '', rated: !!g.rated, createdAt: (g.end_time || 0) * 1000, sans: ok ? ch.history() : [], opening: ccOpening(g.eco)};
 }
 
-export { RATING_GROUPS, SPEEDS_FOR, ccOpening, mergeCards, mergeTime, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };
+/* ================= punishing common mistakes ================= */
+// your side's score with a move from the explorer ({white, draws, black} as shares of that move's games)
+const scoreWith = (m, color) => color === 'w' ? m.white + m.draws / 2 : m.black + m.draws / 2;
+// opponent moves that are common at your level and after which your side scores clearly better than usual:
+// suspects, to be confirmed by Stockfish. `color` is your colour.
+function mistakeSuspects(moves, color, {minShare = 0.04, minGames = 30, gain = 0.04} = {}){
+  const tot = moves.reduce((a, m) => a + m.n, 0); if(!tot) return [];
+  const usual = moves.reduce((a, m) => a + m.n * scoreWith(m, color), 0) / tot;
+  return moves.filter(m => m.share >= minShare && m.n >= minGames && scoreWith(m, color) - usual >= gain)
+    .map(m => ({san: m.san, share: m.share, n: m.n, score: scoreWith(m, color), usual}));
+}
+// confirmed by Stockfish (centipawns, your point of view): the move gives away at least 0.7 and leaves you clearly better
+const isMistake = (loss, yourEval) => loss >= 70 && yourEval >= 50;
+// your reply: 'punished' keeps nearly all of the advantage, 'partly' stays clearly better, 'missed' lets it go
+function punishVerdict(best, you){
+  if(you >= best - Math.max(60, best * 0.2)) return 'punished';
+  return you >= 50 ? 'partly' : 'missed';
+}
+
+export { RATING_GROUPS, SPEEDS_FOR, isMistake, mistakeSuspects, punishVerdict, ccOpening, mergeCards, mergeTime, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };

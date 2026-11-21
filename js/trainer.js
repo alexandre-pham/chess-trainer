@@ -7,12 +7,15 @@ import { Explorer, minGames, scoreFor } from './explorer.js';
 import { explainLast, explainMistake, renderInsight } from './explain.js';
 import { Engine, fmtEval, fmtLine, pvToSan, renderEngineNote, uciMove, waitEngine } from './engine.js';
 import { Daily, nextWeak, openToday, renderDayBar } from './daily.js';
+import { isMistake, mistakeSuspects, punishVerdict } from './logic.js';
 import { showPage } from './nav.js';
 
 /* ================= game state ================= */
 // phases: 'book' (named lines of your selection), 'stats' (Lichess explorer), 'engine' (Stockfish)
 let phase = 'book', phaseEndName = null, game, status = 'idle', lastNamed = null, wrongInfo = null, selectedSq = null, hintOn = false, arrowsList = [];
 let lastFeedback = null, explainInfo = null, nameFresh = false, reviewing = null, failedHere = null, sessionId = 0;
+// punish mode: the common mistake you must punish now, and how the line ended
+let punish = null, punishDone = null;
 const userMarks = [];
 const stats = {good:0, bad:0};
 const files = 'abcdefgh';
@@ -23,6 +26,7 @@ function resetLine(){
   sessionId++; redo = [];
   game = new Chess(); phase = 'book'; phaseEndName = null; userMarks.length = 0; lastFeedback = null; explainInfo = null;
   lastNamed = null; wrongInfo = null; selectedSq = null; hintOn = false; arrowsList = []; failedHere = null; reviewing = null;
+  punish = null; punishDone = null;
 }
 function startLine(){ resetLine(); updateName(); renderAll(); nextTurn(); }
 function startReview(){
@@ -36,6 +40,7 @@ function startReviewKey(key){
   const c = cards[key]; if(!c){ startLine(); return; }
   resetLine(); reviewing = key;
   for(const m of c.path){ if(!game.move(m)) break; userMarks.push('r'); updateName(); }
+  if(c.punish){ punish = {...c.punish, fen: game.fen(), ply: game.history().length}; userMarks[userMarks.length - 1] = 'm'; }
   phase = candidates(game.fen()).length ? 'book' : (Explorer.enabled() ? 'stats' : 'engine');
   if(phase !== 'book') phaseEndName = lastNamed;
   nameFresh = false; status = 'user'; renderAll();
@@ -75,6 +80,7 @@ function navBackSilent(){
 function afterNav(){
   explainInfo = null; lastFeedback = null; arrowsList = []; selectedSq = null; hintOn = false; failedHere = null; reviewing = null; wrongInfo = null;
   recomputeName(); recomputePhase();
+  if(punish && game.history().length < punish.ply) punish = null;
   if(!redo.length){ nextTurn(); return; }        // back at the live position: carry on
   status = game.turn() === S.color ? 'user' : 'browse';
   renderAll();
@@ -104,6 +110,15 @@ let statsEnd = null;
 async function oppMove(){
   if(status !== 'opp') return;
   const sid = sessionId, fen = game.fen();
+  if(S.punish && Explorer.enabled() && !punish && !punishDone && game.history().length >= 3){
+    const mk = await findMistake(fen);
+    if(sid !== sessionId || game.fen() !== fen) return;
+    if(mk && Math.random() < 0.85){
+      game.move(mk.san); userMarks.push('m');
+      punish = {...mk, fen: game.fen(), ply: game.history().length};
+      updateName(); status = 'user'; renderAll(); return;
+    }
+  }
   let options = [];
   if(phase === 'book'){
     let c = candidates(fen);
@@ -144,6 +159,75 @@ async function oppMove(){
   game.move(pick.san); userMarks.push('o');
   updateName(); nextTurn();
 }
+/* ================= punishing common mistakes ================= */
+// a move players at your level often play here, that Stockfish confirms is a mistake (cached per position)
+const mistakeCache = new Map();
+async function findMistake(fen){
+  const key = posKey(fen) + S.ratings.join(',') + S.speeds.join(',');
+  if(!mistakeCache.has(key)) mistakeCache.set(key, scanMistakes(fen).catch(e => { console.error(e); return []; }));
+  const list = await mistakeCache.get(key);
+  if(!list.length) return null;
+  let r = Math.random() * list.reduce((a, m) => a + m.n, 0);
+  for(const m of list){ r -= m.n; if(r <= 0) return m; }
+  return list[0];
+}
+async function scanMistakes(fen){
+  const ex = await Explorer.get(fen, 'lichess');
+  if(!ex || ex.total < 200) return [];
+  const suspects = mistakeSuspects(ex.moves, S.color);
+  if(!suspects.length) return [];
+  Engine.init(); await waitEngine();
+  if(!Engine.available()) return [];
+  const rb = await Engine.analyse(fen, 12, 1);
+  if(!rb) return [];
+  const bestForYou = -rb.cp, out = [];
+  for(const sp of suspects){
+    const after = fenAfter(fen, sp.san), ra = await Engine.analyse(after, 12, 1);
+    if(!ra || !ra.pv.length) continue;
+    if(isMistake(ra.cp - bestForYou, ra.cp)) out.push({...sp, best: ra.cp, loss: ra.cp - bestForYou, reply: uciMove(new Chess(after), ra.pv[0]).san, pv: pvToSan(after, ra.pv, 6)});
+  }
+  return out;
+}
+// your reply to the mistake, judged by Stockfish
+async function judgePunish(before, m){
+  const sid = sessionId, p = punish, g = new Chess(before); g.move(m.san);
+  status = 'checking'; lastFeedback = null; renderAll();
+  await waitEngine();
+  const ra = m.san === p.reply || !Engine.available() ? null : await Engine.analyse(g.fen(), 12, 1);
+  if(sid !== sessionId || status !== 'checking') return;
+  const you = m.san === p.reply ? p.best : ra ? -ra.cp : null, key = posKey(before);
+  if(you == null){ punishDone = {kind: 'unchecked', san: m.san, p}; punish = null; finish(); return; }
+  const verdict = punishVerdict(p.best, you), first = failedHere !== key;
+  if(first && (Daily.active === 'review' || Daily.active === 'weak')) Daily.count(Daily.active);
+  if(verdict === 'punished'){
+    if(first){ stats.good++; logMove(true); }
+    grade(key, first ? 'good' : 'hard', cardCtx(before)); keepPunishCard(key, p);
+    const ex = await Explorer.get(before, 'lichess'), em = ex && ex.moves.find(x => x.san === m.san);
+    if(sid !== sessionId) return;
+    punishDone = {kind: 'punished', san: m.san, you, p, score: em ? scoreFor(em, S.color) : null};
+    punish = null; failedHere = null; redo = []; finish();
+  } else {
+    userMarks[userMarks.length - 1] = 'x'; redo = [];
+    if(first){ stats.bad++; logMove(false); grade(key, 'again', cardCtx(before)); keepPunishCard(key, p); }
+    failedHere = key;
+    wrongInfo = {phase: 'punish', before, move: m, verdict, you, p, cands: [{san: p.reply}], refutation: ra ? pvToSan(g.fen(), ra.pv, 6) : [], afterFen: g.fen()};
+    status = 'wrong'; renderAll();
+  }
+}
+// the card remembers the mistake, so its review asks for the punishment again
+function keepPunishCard(key, p){
+  if(!cards[key]) return;
+  cards[key].punish = {san: p.san, share: p.share, n: p.n, score: p.score, usual: p.usual, best: p.best, loss: p.loss, reply: p.reply, pv: p.pv};
+  saveCards();
+}
+function showPunish(){
+  const w = wrongInfo; game.undo(); userMarks.pop();
+  const m = game.move(w.p.reply); userMarks.push('u');
+  arrowsList = [[m.from, m.to]]; wrongInfo = null; punishDone = {kind: 'shown', san: m.san, p: w.p}; punish = null; failedHere = null;
+  updateName(); finish();
+}
+const mvNo = (fen, san) => fmtLine(fen, [san]);
+
 function updateName(){
   const p = POS[posKey(game.fen())];
   if(p && p[1]){ const l = LINES[p[0]]; if(!lastNamed || lastNamed[1] !== l[1]){ lastNamed = l; nameFresh = true; } }
@@ -169,6 +253,7 @@ function tryUserMove(from, to){
   if(!m) return false;
   selectedSq = null; hintOn = false; arrowsList = []; explainInfo = null;
   userMarks.push('u');
+  if(punish && before === punish.fen){ judgePunish(before, m).catch(err => { console.error(err); if(status === 'checking'){ punishDone = {kind: 'unchecked', san: m.san, p: punish}; punish = null; finish(); } }); return true; }
   if(phase === 'book') judgeBook(before, m);
   else {
     status = 'checking'; lastFeedback = null; renderAll();
@@ -326,7 +411,8 @@ function retry(){
 }
 function showBest(){
   if(status !== 'wrong') return;
-  const w = wrongInfo; game.undo(); userMarks.pop();
+  const w = wrongInfo;
+  if(w.phase === 'punish'){ showPunish(); return; } game.undo(); userMarks.pop();
   const m = game.move(w.cands[0].san); userMarks.push('u');
   arrowsList = [[m.from, m.to]]; wrongInfo = null; lastFeedback = {kind: w.sound ? 'shownLine' : 'shown', san: m.san}; failedHere = null;
   updateName(); nextTurn();
@@ -349,8 +435,9 @@ async function toggleHint(){
   if(hintOn){
     const fen = game.fen();
     let sans = phase === 'book' ? candidates(fen).map(c => c.san) : [];
-    if(phase === 'stats'){ const ex = await Explorer.get(fen); if(ex) sans = ex.moves.filter((m, i) => i === 0 || m.share >= 0.1).map(m => m.san); }
-    if(phase === 'engine'){ const r = await Engine.analyse(fen, 10, 1); if(r){ const g = new Chess(fen); sans = [uciMove(g, r.pv[0]).san]; } }
+    if(punish && fen === punish.fen) sans = [punish.reply];
+    else if(phase === 'stats'){ const ex = await Explorer.get(fen); if(ex) sans = ex.moves.filter((m, i) => i === 0 || m.share >= 0.1).map(m => m.san); }
+    else if(phase === 'engine'){ const r = await Engine.analyse(fen, 10, 1); if(r){ const g = new Chess(fen); sans = [uciMove(g, r.pv[0]).san]; } }
     if(game.fen() !== fen) return;
     sans.forEach(s => { const g = new Chess(fen); const m = g.move(s); if(m) hintSquares.add(m.from); });
   }
@@ -414,7 +501,7 @@ function renderMoves(){
     for(const x of [all[i], all[i + 1]]){
       if(!x){ s += '<span class="m empty"></span>'; continue; }
       const cls = ['m'];
-      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.mark === 's') cls.push('s'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
+      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.mark === 's') cls.push('s'); if(x.mark === 'm') cls.push('mis'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
       s += `<span class="${cls.join(' ')}" data-ply="${x.ply}" role="button" tabindex="0">${esc(x.san)}</span>`;
     }
   }
@@ -504,7 +591,15 @@ function renderStatus(){
   const st = $('status'), ac = $('actions');
   let cls = 'status', title = '', body = '', acts = [];
   const tag = reviewing ? '<div class="review-tag">Review</div>' : '';
-  if(status === 'wrong' && wrongInfo && wrongInfo.sound){
+  if(status === 'wrong' && wrongInfo && wrongInfo.phase === 'punish'){
+    const w = wrongInfo, p = w.p, san = esc(w.move.san);
+    cls += w.verdict === 'partly' ? ' warn' : ' bad';
+    title = (w.verdict === 'partly' ? 'Still better, but not the punishment: ' : 'Not the punishment: ') + san;
+    body = `After ${san} Stockfish gives ${fmtEval(w.you)}. The best reply keeps ${fmtEval(p.best)}.`;
+    if(w.refutation.length) body += `<div class="engine"><span class="lbl">Likely continuation:</span> ${esc(fmtLine(w.afterFen, w.refutation))}</div>`;
+    body += `<div id="insight" class="insight"></div>`;
+    acts = [['Try again', retry, 'primary'], ['Show the punishment', showBest]];
+  } else if(status === 'wrong' && wrongInfo && wrongInfo.sound){
     const w = wrongInfo, s = w.sound, e = w.engine, san = esc(w.move.san);
     cls += ' sound'; title = 'Good move, but not your line: ' + san;
     body = s.why === 'theory' ? `${san} is theory too: it leads to <em>${esc(w.otherName)}</em>.`
@@ -529,10 +624,22 @@ function renderStatus(){
     body += `<div id="insight" class="insight"></div>`;
     acts = [['Try again', retry, 'primary'], [w.phase === 'engine' ? 'Show the best move' : 'Show the main move', showBest]];
     if(w.phase === 'stats' && w.rareButSound) acts.push(['Continue with my move', keepMine]);
+  } else if(status === 'done' && punishDone){
+    const d = punishDone, p = d.p, line = p.pv && p.pv.length ? `<div class="engine"><span class="lbl">Stockfish's line:</span> ${esc(fmtLine(p.fen || game.fen(), p.pv))}</div>` : '';
+    cls += d.kind === 'shown' ? ' done' : ' good';
+    title = d.kind === 'punished' ? 'Mistake punished' : d.kind === 'shown' ? 'The punishment' : 'Line complete';
+    body = d.kind === 'punished' ? `${esc(d.san)} keeps the advantage (Stockfish ${fmtEval(d.you)}${d.san !== p.reply ? `; ${esc(p.reply)} was ${fmtEval(p.best)}` : ''}).${d.score != null ? ` Players at your level score ${pct(d.score)} with it.` : ''}`
+      : d.kind === 'shown' ? `${esc(p.reply)} punishes ${esc(p.san)} (Stockfish ${fmtEval(p.best)}). This position will come back for review.`
+      : `${esc(d.san)} could not be checked.`;
+    body += line;
+    acts = [['Play another line', startLine, 'primary']];
+    const due = dueCards().length; if(due) acts.push([`Review ${due} due position${due > 1 ? 's' : ''}`, startReview]);
+    acts.push(['Explain the last move', explainLast]);
   } else if(status === 'done'){
     cls += ' done'; title = 'Line complete';
     body = phase === 'book' ? (lastNamed ? `You reached the end of the known theory in <em>${esc(lastNamed[1])}</em>.` : 'You reached the end of the known theory.')
       : `You played through move ${Math.min(moveNo(), S.maxMove)}${phaseEndName ? `, starting from <em>${esc(phaseEndName[1])}</em>` : ''}.`;
+    if(S.punish && Explorer.enabled()) body += ' No common mistake came up in this line.';
     const due = dueCards().length;
     acts = due ? [[`Review ${due} due position${due > 1 ? 's' : ''}`, startReview, 'primary'], ['Play a new line', startLine]] : [['Play another line', startLine, 'primary']];
     // inside today's plan: offer the step's own next action first
@@ -550,6 +657,11 @@ function renderStatus(){
     title = 'Going through the game';
     body = `It is the opponent's move here. Step back once more to play a different move yourself, or go forward with ▶.`;
     acts = [['Back to the current position', navLast, 'primary'], ['Restart line', startLine]];
+  } else if(status === 'user' && punish && game.fen() === punish.fen && !redo.length){
+    const p = punish, h = game.history(), prev = new Chess(); h.slice(0, -1).forEach(x => prev.move(x));
+    title = 'Punish the mistake: ' + esc(mvNo(prev.fen(), p.san));
+    body = `${esc(p.san)} is a common mistake at your level: it is played in ${pct(p.share)} of games here, and players who meet it score ${pct(p.score)} instead of ${pct(p.usual)}. Stockfish: you are now ${fmtEval(p.best)}. Find the move that punishes it.`;
+    acts = [['Hint', toggleHint], ['Explain the last move', explainLast], ['Restart line', startLine]];
   } else {
     title = reviewing ? 'Find the move you missed before' : redo.length ? `Your move, replaying from move ${moveNo()}` : 'Your move';
     body = redo.length ? `Play a move to continue from here. It is judged as usual, and the later moves are replaced. Use ▶ to step forward instead.<br>${phaseNote()}`
