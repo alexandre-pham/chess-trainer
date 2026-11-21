@@ -386,6 +386,15 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
 .cal-d.l1{background:var(--heat1);color:#172231} .cal-d.l2{background:var(--heat2);color:#172231} .cal-d.l3{background:var(--heat3);color:#fff} .cal-d.l4{background:var(--heat4);color:#fff}
 .cal-d.today{box-shadow:inset 0 0 0 2px var(--ink)}
 .footnote{margin-top:16px}
+/* board pages on wide screens: the whole window, the board sized by the window height (--bd) */
+@media (min-width:861px){
+  .wrap{max-width:none}
+  .wrap > section:not(#train):not(#coords){max-width:1152px;margin-left:auto;margin-right:auto}
+  .wrap:has(> #train:not([hidden])) header.top,.wrap:has(> #coords:not([hidden])) header.top{margin-bottom:16px}
+  #train.train{--bd:min(calc(100vh - 150px),calc(100vw - 440px));grid-template-columns:calc(var(--bd) + 26px) minmax(320px,520px);justify-content:center}
+  #coords .c-train{--bd:min(calc(100vh - 330px),calc(100vw - 420px));grid-template-columns:var(--bd) minmax(320px,520px);justify-content:center}
+  #coords > .pg-h,#coords > .lede,#coords > .c-top{max-width:calc(var(--bd,600px) + 560px);margin-left:auto;margin-right:auto}
+}
 @media (max-width:860px){
   .wrap{padding:0 14px 32px}
   header.top{flex-direction:column;align-items:stretch;gap:0}
