@@ -169,18 +169,6 @@
 
   <!-- SQUARES -->
   <section id="coords" hidden>
-    <h1 class="pg-h">Learn the squares</h1>
-    <p class="lede">Play famous games on the board from their written moves.</p>
-    <div class="row c-top">
-      <div class="field">
-        <span class="field-label">Board seen from</span>
-        <div class="seg" role="group" aria-label="Board seen from" id="cSides"></div>
-      </div>
-      <div class="field" id="cLenF">
-        <label class="field-label" for="cLen">Length</label>
-        <select id="cLen"><option value="10">10 moves</option><option value="20">20 moves</option><option value="30" selected>30 moves</option><option value="40">40 moves</option><option value="0">Whole game</option></select>
-      </div>
-    </div>
     <div class="train c-train">
       <div>
         <div class="board-wrap" id="cBoardWrap">
@@ -193,6 +181,16 @@
         <div class="c-line" id="cLine"></div>
         <div class="status" id="cFeedback" hidden></div>
         <div class="actions" id="cActions"></div>
+        <div class="row c-top">
+          <div class="field">
+            <span class="field-label">Board seen from</span>
+            <div class="seg" role="group" aria-label="Board seen from" id="cSides"></div>
+          </div>
+          <div class="field" id="cLenF">
+            <label class="field-label" for="cLen">Length</label>
+            <select id="cLen"><option value="10">10 moves</option><option value="20">20 moves</option><option value="30" selected>30 moves</option><option value="40">40 moves</option><option value="0">Whole game</option></select>
+          </div>
+        </div>
         <div class="stats">
           <div><b id="cOk">0</b>first try</div>
           <div><b id="cBad">0</b>missed</div>
