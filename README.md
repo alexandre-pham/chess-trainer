@@ -57,6 +57,24 @@ repertoire) lives in `js/logic.js` and has tests that need only Node 22 or later
 node --test
 ```
 
+## Analyse your chess.com games
+
+`tools/analyse-games.mjs` runs Stockfish (the app's own copy in `vendor/`) on your chess.com games, on your
+computer, and prints what costs you points: where the games you did not win turned, blunders by phase and by
+clock, winning positions not won, missed opponent blunders, openings, and each game's worst move. Needs Node 18+.
+
+```sh
+node tools/analyse-games.mjs --user NAME --games 10        # the last 10 games
+node tools/analyse-games.mjs --user NAME --days 10         # the last 10 days
+node tools/analyse-games.mjs --user NAME --months 3        # the last 3 months
+node tools/analyse-games.mjs --user NAME --since 2026-11-01 --time blitz
+```
+
+Rapid games by default (`--time rapid|blitz|bullet|daily|all`); with no choice of games, the last 30 days.
+Analysed games are kept in `~/.cache/chess-trainer-analysis/`, so running it again only analyses new games.
+Stockfish uses most of your processor while it runs: about 2 seconds per game with 8 copies
+(`--workers N` to use fewer, `--nodes N` for less effort per move). `--help` lists every option.
+
 ## Code layout
 
 ```
@@ -86,7 +104,8 @@ js/progress.js     time tracking, calendar, Progress page
 data/openings.json opening lines and an index of positions
 data/games.json    famous games
 vendor/            chess.js and Stockfish
-tests/             tests of js/logic.js (node --test)
+tests/             tests of js/logic.js and tools/ (node --test)
+tools/analyse-games.mjs  Stockfish analysis of your chess.com games (command line)
 pieces/            piece images
 ```
 
