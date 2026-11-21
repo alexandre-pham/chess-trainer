@@ -8,7 +8,7 @@ import { Sync } from './sync.js';
 import { Explorer } from './explorer.js';
 import { renderInsight, wikiQuick } from './explain.js';
 import { fmtEval } from './engine.js';
-import { enterTraining, lineInProgress, soundMove, startLine, startReview, startReviewKey } from './trainer.js';
+import { enterTraining, lineInProgress, renderAll, soundMove, startLine, startReview, startReviewKey } from './trainer.js';
 import { fmtMoves, openCoords } from './squares.js';
 import { showPage } from './nav.js';
 import { dayKey, fmtDay } from './progress.js';
@@ -74,7 +74,7 @@ function renderToday(){
     $('tdPlanH').hidden = $('tdPlan').hidden = false;
     const plan = Daily.ensure(), streak = Daily.streak(), next = plan.steps.find(s => s.done < s.target), live = lineInProgress();
     // the one obvious next thing: the line you left, the next step of the plan, or another line
-    const [head, label, sub, go] = live ? ['Welcome back', 'Continue your line', 'You were in the middle of a line.', () => $('toTrain').click()]
+    const [head, label, sub, go] = live ? ['Welcome back', 'Continue your line', 'You were in the middle of a line.', () => { enterTraining(); renderAll(); }]
       : next ? ["Today's practice", 'Next: ' + next.title, stepLabel(next) + ` done. About ${Daily.budget} minutes in all.`, () => runStep(next.id)]
       : ['Done for today', 'Play another line', 'Today\'s plan is complete. Come back tomorrow to keep your streak going.', () => { enterTraining(); startLine(); }];
     hero.innerHTML = `<div class="td-hero-main"><div class="td-eyebrow">${esc(S.sel[0])}, as ${S.color === 'w' ? 'White' : 'Black'}${S.opp ? `, against the ${esc(S.opp)}` : ''}</div>

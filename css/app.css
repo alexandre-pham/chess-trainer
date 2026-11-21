@@ -60,7 +60,6 @@ select.opp-var{margin-top:8px}
 .setup{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;align-items:start}
 .setup h1{font-family:var(--serif);font-weight:500;font-size:clamp(28px,4vw,40px);line-height:1.1;letter-spacing:-.015em;margin:0 0 8px}
 .lede{color:var(--muted);margin:0 0 24px;max-width:60ch}
-.notice{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 14px;border-radius:6px;margin:0 0 16px}
 .field{margin-bottom:20px}
 .field-label{font-size:13px;font-weight:600;margin-bottom:8px;display:block}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--surface);gap:3px}

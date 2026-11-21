@@ -1,11 +1,10 @@
 // Starts the app: navigation between pages and first render.
 import { $ } from './util.js';
-import { S } from './book.js';
 import { showPage } from './nav.js';
 import { renderColor, renderSetup } from './setup.js';
 import { checkExplorer, refreshCc, renderAuth, renderExplorerChoices } from './settings.js';
 import { renderSync } from './sync.js';
-import { enterTraining, game, newSession, renderAll, restoreSession, setTrainAlive, startLine, syncStats, trainAlive } from './trainer.js';
+import { newSession, restoreSession, setTrainAlive, syncStats } from './trainer.js';
 import { Daily, openToday } from './daily.js';
 import './data.js';
 import './srs.js';
@@ -25,14 +24,9 @@ import { init as init_progress } from './progress.js';
 
 /* ================= boot ================= */
 function start(){
-  $('toSetup').onclick = () => { newSession(); Daily.active = null; setTrainAlive(false); showPage('setup'); renderSetup(); $('setupNote').hidden = true; };
+  $('toSetup').onclick = () => { newSession(); Daily.active = null; setTrainAlive(false); showPage('setup'); renderSetup(); };
   $('toSettings').onclick = () => showPage('settings');
   $('toHome').onclick = e => { e.preventDefault(); openToday(); };
-  $('toTrain').onclick = () => {
-    if(trainAlive && game){ enterTraining(); renderAll(); }
-    else if(S.sel.length){ enterTraining(); startLine(); }
-    else { $('toSetup').onclick(); $('setupNote').hidden = false; }
-  };
   $('pgEmptyGo').onclick = () => openToday();
   renderColor();
   renderSetup();

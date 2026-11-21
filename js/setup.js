@@ -12,7 +12,7 @@ function renderColor(){ $('asW').setAttribute('aria-pressed', S.color === 'w'); 
  
  
 
-function setSel(prefix){ S.sel = prefix ? [prefix] : []; store.set('sel', S.sel); $('setupNote').hidden = true; renderSetup(); }
+function setSel(prefix){ S.sel = prefix ? [prefix] : []; store.set('sel', S.sel); renderSetup(); }
 const famOf = p => p ? p.split(':')[0] : '';
 function famLabel(fam){ const e = [...FAM.get(fam).ecos].sort(); return `${fam} (${e.length > 1 ? e[0] + '–' + e[e.length-1] : e[0]})`; }
 function previewLine(cur){

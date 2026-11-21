@@ -1,8 +1,8 @@
-// Navigation between pages: one page shown at a time, every nav item always visible.
+// Navigation between pages: one page shown at a time, every nav item always visible. The board (train) has no tab.
 import { $ } from './util.js';
 
 /* ================= pages ================= */
-const NAV_FOR = {today: 'toToday', setup: 'toSetup', train: 'toTrain', coords: 'toCoords', progress: 'toProgress', settings: 'toSettings'};
+const NAV_FOR = {today: 'toToday', setup: 'toSetup', train: 'toSetup', coords: 'toCoords', progress: 'toProgress', settings: 'toSettings'};
 const PAGES = Object.keys(NAV_FOR);
 const leaveHooks = [];
 let current = null;
