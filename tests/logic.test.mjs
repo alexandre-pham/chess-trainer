@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mergeCards, mergeTime, repertoireExit, schedule, unionInto } from '../js/logic.js';
+import { mergeCards, mergePrefs, mergeTime, repertoireExit, schedule, unionInto } from '../js/logic.js';
 const { Chess } = createRequire(import.meta.url)('../vendor/chess.js');
 
 const DAY = 86400000, NOW = 1_700_000_000_000;
@@ -79,4 +79,21 @@ test('repertoireExit: the opponent avoided the opening on move one', () => {
 test('repertoireExit: the book ended, or the game ended in the book', () => {
   assert.equal(repertoireExit('e4 c5 Nf3 d6'.split(' '), 'w', cand, Chess).verdict.kind, 'end');
   assert.equal(repertoireExit('e4 e5'.split(' '), 'w', cand, Chess).verdict.kind, 'short');
+});
+
+test('mergePrefs: the newest change wins, per setting', () => {
+  const keys = ['sel', 'color', 'maxMove'];
+  const r = mergePrefs({sel: ['Catalan Opening'], color: 'w', maxMove: 15}, {sel: 200, maxMove: 100},
+    {sel: ['French Defense'], color: 'b', maxMove: 20}, {sel: 100, color: 300, maxMove: 150}, keys);
+  assert.deepEqual(r.changes, {color: 'b', maxMove: 20});
+  assert.deepEqual(r.at, {sel: 200, color: 300, maxMove: 150});
+});
+
+test('mergePrefs: settings without time stamps fill only what this device lacks', () => {
+  const keys = ['sel', 'color', 'maxMove'];
+  // a new phone with nothing chosen takes your openings and colour
+  assert.deepEqual(mergePrefs({sel: [], color: 'w', maxMove: null}, {}, {sel: ['French Defense'], color: 'b', maxMove: 20}, {}, keys).changes,
+    {sel: ['French Defense'], color: 'b', maxMove: 20});
+  // a device with its own openings keeps them
+  assert.deepEqual(mergePrefs({sel: ['Catalan Opening'], color: 'w', maxMove: 15}, {}, {sel: ['French Defense'], color: 'b', maxMove: 20}, {}, keys).changes, {});
 });

@@ -1,14 +1,17 @@
 // Merging progress from a file or another device, and sync through a Firebase account.
-import { $, esc, store } from './util.js';
+import { $, SYNCED, esc, store } from './util.js';
 import { cards, moveLog } from './srs.js';
-import { renderSel } from './setup.js';
+import { renderSetup } from './setup.js';
 import { game, renderStatus } from './trainer.js';
-import { coordLog, coordRounds } from './squares.js';
-import { Daily } from './daily.js';
-import { timeLog } from './progress.js';
+import { C, coordLog, coordRounds } from './squares.js';
+import { Daily, renderToday } from './daily.js';
+import { openProgress, timeLog } from './progress.js';
+import { renderCc, renderExplorerChoices } from './settings.js';
+import { S, rebuildSel } from './book.js';
+import { Explorer } from './explorer.js';
 import { firebaseConfig } from './firebase-config.js';
 import { currentPage } from './nav.js';
-import { mergeCards, mergeTime, unionInto } from './logic.js';
+import { mergeCards, mergePrefs, mergeTime, unionInto } from './logic.js';
 
 /* ---- merging progress from another device or file: newest card wins, histories are combined ---- */
 function mergeProgress(data){
@@ -22,7 +25,22 @@ function mergeProgress(data){
     if(Array.isArray(data.dailyDays)){ const add = data.dailyDays.filter(d => !Daily.days.includes(d)); if(add.length){ Daily.days.push(...add); Daily.days.sort(); store.set('dailyDays', Daily.days); changed = true; } }
   }
   if(changed){ store.set('cards', cards); store.set('log', moveLog); }
+  if(data.prefs && mergeSettings(data.prefs, data.prefsAt)) changed = true;
   return changed;
+}
+// your openings and settings from another device
+const MEM = {cSide: [C, 'side'], cLen: [C, 'len'], cNext: [C, 'next'], dailyBudget: [Daily, 'budget']};
+function mergeSettings(prefs, prefsAt){
+  const local = {}; for(const k of SYNCED) local[k] = store.get(k, null);
+  const {changes, at} = mergePrefs(local, store.get('prefsAt', {}), prefs, prefsAt, SYNCED);
+  // written directly: store.set would stamp them as changed on this device
+  try{ for(const [k, v] of Object.entries(changes)) localStorage.setItem('ot:' + k, JSON.stringify(v)); localStorage.setItem('ot:prefsAt', JSON.stringify(at)); }catch(e){}
+  const keys = Object.keys(changes); if(!keys.length) return false;
+  for(const k of keys){ const [o, f] = MEM[k] || [S, k]; o[f] = changes[k]; }
+  rebuildSel();
+  if(keys.includes('ratings') || keys.includes('speeds')) Explorer.reset();
+  renderCc(); renderExplorerChoices();
+  return true;
 }
 
 /* ================= accounts and sync (Firebase) ================= */
@@ -31,7 +49,7 @@ function mergeProgress(data){
 const SDK = 'https://www.gstatic.com/firebasejs/12.19.0/';
 const CHUNK = 700000;   // a Firestore document holds at most 1 MiB, so the progress is split into pieces
 // progress that belongs to the person signed in: cleared on sign-out so the next person starts clean
-const PERSONAL = ['cards', 'log', 'coordLog', 'coordRounds', 'time', 'dailyDays', 'daily', 'session', 'token', 'user', 'ratings', 'speeds', 'ccUser', 'ccProfile', 'ccAuto', 'rLines', 'pkce', 'fbHash', 'fbLast'];
+const PERSONAL = [...SYNCED, 'cards', 'log', 'coordLog', 'coordRounds', 'time', 'dailyDays', 'daily', 'session', 'token', 'user', 'rLines', 'pkce', 'fbHash', 'fbLast', 'prefsAt'];
 let A = null, F = null, auth = null, db = null;
 
 function hash(str){   // cyrb53: tells whether the progress changed without downloading it
@@ -104,7 +122,10 @@ const Sync = window.Sync = {
     for(const k of PERSONAL) localStorage.removeItem('ot:' + k);
     location.reload();
   },
-  payload(){ return JSON.stringify({app: 'opening-trainer', version: 6, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog}); },
+  payload(){
+    const prefs = {}; for(const k of SYNCED){ const v = store.get(k, null); if(v != null) prefs[k] = v; }
+    return JSON.stringify({app: 'opening-trainer', version: 6, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog, prefs, prefsAt: store.get('prefsAt', {})});
+  },
   // pull, merge, push. Runs one at a time.
   syncNow(){
     if(!this.connected()) return Promise.resolve();
@@ -132,7 +153,8 @@ const Sync = window.Sync = {
         }
         this.remoteHash = h; store.set('fbHash', h);
         this.state = 'ok'; this.error = ''; this.last = Date.now(); store.set('fbLast', this.last);
-        if(gotNew){ if(currentPage() === 'setup') renderSel(); else if(currentPage() === 'train' && game) renderStatus(); }
+        if(gotNew){ const p = currentPage();
+          if(p === 'today') renderToday(); else if(p === 'setup') renderSetup(); else if(p === 'progress') openProgress(false); else if(p === 'train' && game) renderStatus(); }
       }catch(e){ this.state = 'error'; this.error = errText(e); }
       this.busy = null; renderSync();
       if(this.dirty) this.schedule(1500);

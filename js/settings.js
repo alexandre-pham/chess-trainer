@@ -123,7 +123,7 @@ async function checkExplorer(){
   
 
 
-export { checkExplorer, refreshCc, renderAuth, renderExplorerChoices };
+export { checkExplorer, refreshCc, renderAuth, renderCc, renderExplorerChoices };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

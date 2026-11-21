@@ -239,7 +239,7 @@ function openToday(keepActive, keepExtra){
   renderToday(); renderDayBar(); if(keepExtra && !$('tdExtra').hidden) $('tdExtra').scrollIntoView({block: 'start'}); else window.scrollTo(0, 0);
 }
 
-export { Daily, nextWeak, openToday, renderDayBar };
+export { Daily, nextWeak, openToday, renderDayBar, renderToday };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

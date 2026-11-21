@@ -62,8 +62,10 @@ async function qPlay(){
   const g = new Chess(); let i = 0, tries = 0, firstTry = 0;
   C.fen = g.fen(); C.hl = {}; C.sel = null; cRender();
   const head = `<div class="c-game"><b>${esc(game.label)}</b>${game.sub ? ', ' + esc(game.sub) : ''}</div>`;
-  const showLine = () => head + '<div>' + fmtMoves(sans, 0).map((t, j) => `<span class="${j < i ? 'done' : j === i ? 'now' : 'todo'}">${esc(t)}</span>`).join(' ') + '</div>';
-  const keepInView = () => { const n = $('cLine').querySelector('.now'); if(n) n.scrollIntoView({block: 'nearest'}); };
+  // one row per move: number, White's move, Black's move
+  const cell = j => j < sans.length ? `<span class="${j < i ? 'done' : j === i ? 'now' : 'todo'}">${esc(sans[j])}</span>` : '<span></span>';
+  const showLine = () => { let rows = ''; for(let j = 0; j < sans.length; j += 2) rows += `<span class="n">${j / 2 + 1}.</span>${cell(j)}${cell(j + 1)}`; return head + `<div class="c-moves">${rows}</div>`; };
+  const keepInView = () => { const box = $('cLine').querySelector('.c-moves'), n = box && box.querySelector('.now'); if(n) box.scrollTop = n.offsetTop - box.clientHeight / 2; };
   const ask = () => { cAsk(i < sans.length ? `Play <b>${esc(sans[i])}</b> for ${COLOR(g.turn())}.` : 'Done.', {line: showLine(), actions: [['Skip this game', qPlay]]}); keepInView(); };
   ask();
   C.q = {onClick(sq){

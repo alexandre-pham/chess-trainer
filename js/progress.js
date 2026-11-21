@@ -77,8 +77,8 @@ function renderTime(){
 /* ================= progress page ================= */
 const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const fmtDay = k => new Date(k + 'T12:00').toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
-function openProgress(){
-  showPage('progress');
+function openProgress(scroll = true){
+  showPage('progress', scroll);
   // openings you have practised, most recent first
   const recent = new Map();
   for(const e of moveLog){ const k = e[1] + '|' + e[2]; recent.set(k, Math.max(recent.get(k) || 0, e[0])); }
@@ -150,7 +150,7 @@ function renderProgress(){
   });
 }
 
-export { dayKey, fmtDay, timeLog };
+export { dayKey, fmtDay, openProgress, timeLog };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){
@@ -168,7 +168,7 @@ function init(){
   }, 5000);
   $('tmPrev').onclick = () => { const [y, m] = calMonth.split('-').map(Number), d = new Date(y, m - 2, 1); calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderTime(); };
   $('tmNext').onclick = () => { const [y, m] = calMonth.split('-').map(Number), d = new Date(y, m, 1); calMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; renderTime(); };
-  $('toProgress').onclick = openProgress;
+  $('toProgress').onclick = () => openProgress();
   $('pgOpening').onchange = renderProgress;
 }
 export { init };

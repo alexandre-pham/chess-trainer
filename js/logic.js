@@ -32,6 +32,21 @@ function mergeTime(timeLog, extra){
       for(const [a, sec] of Object.entries(acts || {})) if((md[a] || 0) < sec){ md[a] = sec; changed = true; } } }
   return changed;
 }
+// settings from another device: the newest change wins, per setting. Settings saved before changes were time-stamped
+// are taken only where this device has none, so a new device gets your openings without overwriting another's.
+// Returns {changes: settings to apply here, at: the merged time stamps}.
+function mergePrefs(local, localAt, remote, remoteAt, keys){
+  const changes = {}, at = {...localAt}, empty = v => v == null || (Array.isArray(v) && !v.length);
+  for(const k of keys){
+    if(!remote || !(k in remote)) continue;
+    const t = (remoteAt || {})[k] || 0, mine = (localAt || {})[k] || 0;
+    const take = t ? t > mine : !mine && (empty(local[k]) || (k === 'color' && empty(local.sel)));
+    if(!take) continue;
+    if(t) at[k] = t;
+    if(JSON.stringify(remote[k]) !== JSON.stringify(local[k])) changes[k] = remote[k];
+  }
+  return {changes, at};
+}
 
 /* ================= your games against your repertoire ================= */
 // Follows a game's moves through the book (`candidates(fen)` lists the book moves) and says where it left it:
@@ -137,4 +152,4 @@ function punishVerdict(best, you){
   return you >= 50 ? 'partly' : 'missed';
 }
 
-export { RATING_GROUPS, SPEEDS_FOR, isMistake, mistakeSuspects, punishVerdict, ccOpening, mergeCards, mergeTime, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };
+export { RATING_GROUPS, SPEEDS_FOR, isMistake, mistakeSuspects, punishVerdict, ccOpening, mergeCards, mergePrefs, mergeTime, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };

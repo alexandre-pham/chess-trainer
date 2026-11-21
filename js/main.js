@@ -25,13 +25,13 @@ import { init as init_progress } from './progress.js';
 
 /* ================= boot ================= */
 function start(){
-  $('toSetup').onclick = () => { newSession(); Daily.active = null; setTrainAlive(false); showPage('setup'); renderSetup(); };
+  $('toSetup').onclick = () => { newSession(); Daily.active = null; setTrainAlive(false); showPage('setup'); renderSetup(); $('setupNote').hidden = true; };
   $('toSettings').onclick = () => showPage('settings');
   $('toHome').onclick = e => { e.preventDefault(); openToday(); };
   $('toTrain').onclick = () => {
     if(trainAlive && game){ enterTraining(); renderAll(); }
     else if(S.sel.length){ enterTraining(); startLine(); }
-    else $('toSetup').onclick();
+    else { $('toSetup').onclick(); $('setupNote').hidden = false; }
   };
   $('pgEmptyGo').onclick = () => openToday();
   renderColor();

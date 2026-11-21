@@ -34,7 +34,7 @@ Live: https://alexandre-pham.github.io/chess-trainer/
   control, and your rating converted to the Lichess scale.
 - **Squares**: play famous games on the board from their written moves (also the daily warm-up).
 - **Progress**: time per day, calendar, streaks, accuracy per opening.
-- **Accounts**: sign in with Google or with an email and a password (Firebase) to keep your progress on all
+- **Accounts**: sign in with Google or with an email and a password (Firebase) to keep your progress, openings and settings on all
   your devices. Without an account, progress stays in the browser.
 
 ## Run it locally

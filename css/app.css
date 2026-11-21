@@ -60,6 +60,7 @@ select.opp-var{margin-top:8px}
 .setup{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:28px;align-items:start}
 .setup h1{font-family:var(--serif);font-weight:500;font-size:clamp(28px,4vw,40px);line-height:1.1;letter-spacing:-.015em;margin:0 0 8px}
 .lede{color:var(--muted);margin:0 0 24px;max-width:60ch}
+.notice{background:var(--warn-soft);border-left:3px solid var(--warn);padding:10px 14px;border-radius:6px;margin:0 0 16px}
 .field{margin-bottom:20px}
 .field-label{font-size:13px;font-weight:600;margin-bottom:8px;display:block}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;background:var(--surface);gap:3px}
@@ -238,7 +239,10 @@ select.big{width:100%;font-family:var(--serif);font-size:18px;padding:10px 12px;
 .hard .hs{font-size:12.5px;color:var(--muted)}
 .c-train{margin-bottom:18px}
 .c-top{margin-bottom:16px}
-.c-line{font-family:var(--serif);font-size:18px;line-height:1.8;margin-bottom:12px;max-height:190px;overflow:auto}
+.c-line{font-family:var(--serif);font-size:18px;line-height:1.7;margin-bottom:12px}
+.c-moves{display:grid;grid-template-columns:2.4em 5.5em 5.5em;column-gap:10px;justify-content:start;max-height:190px;overflow:auto;position:relative}
+.c-moves .n{color:var(--muted);text-align:right}
+.c-moves span{justify-self:start}
 .c-game{font-size:14px;color:var(--muted);margin:-6px 0 10px}
 .c-game b{color:var(--ink);font-weight:600}
 .c-line .done{color:var(--good)} .c-line .now{background:var(--accent-soft);border-radius:4px;padding:1px 4px;font-weight:600} .c-line .todo{color:var(--muted)}
