@@ -3,7 +3,7 @@ import { $ } from './util.js';
 import { S } from './book.js';
 import { showPage } from './nav.js';
 import { renderColor, renderSetup } from './setup.js';
-import { checkExplorer, renderAuth, renderExplorerChoices } from './settings.js';
+import { checkExplorer, refreshCc, renderAuth, renderExplorerChoices } from './settings.js';
 import { renderSync } from './sync.js';
 import { enterTraining, game, newSession, renderAll, restoreSession, setTrainAlive, startLine, syncStats, trainAlive } from './trainer.js';
 import { Daily, openToday } from './daily.js';
@@ -38,6 +38,7 @@ function start(){
   renderExplorerChoices();
   renderAuth();
   checkExplorer();
+  refreshCc(false);
   // ask the browser to keep this site's data instead of clearing it when space runs low
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
   renderSync();

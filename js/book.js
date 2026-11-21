@@ -24,7 +24,10 @@ const QUICK = ["Sicilian Defense","French Defense","Caro-Kann Defense","Scandina
 const S = {
   color: store.get('color','w'), sel: store.get('sel', []),
   maxMove: store.get('maxMove', 15), useEngine: store.get('useEngine', 1),
-  token: store.get('token', ''), exDb: store.get('exDb', 'lichess'), ratings: store.get('ratings', [1600,1800,2000])
+  token: store.get('token', ''), exDb: store.get('exDb', 'lichess'), ratings: store.get('ratings', [1600,1800,2000]),
+  speeds: store.get('speeds', ['blitz', 'rapid', 'classical']),
+  // chess.com username, its level ({timeClass, rating, games, at}), and whether the statistics follow it
+  ccUser: store.get('ccUser', ''), ccProfile: store.get('ccProfile', null), ccAuto: store.get('ccAuto', 1)
 };
 
 let selFlags = new Uint8Array(LINES.length);

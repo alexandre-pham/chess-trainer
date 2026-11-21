@@ -7,11 +7,13 @@ import { previewLine, renderSetup } from './setup.js';
 import { Sync } from './sync.js';
 import { Explorer } from './explorer.js';
 import { renderInsight, wikiQuick } from './explain.js';
-import { enterTraining, startLine, startReview, startReviewKey } from './trainer.js';
+import { fmtEval } from './engine.js';
+import { enterTraining, soundMove, startLine, startReview, startReviewKey } from './trainer.js';
 import { fmtMoves, openCoords } from './squares.js';
 import { showPage } from './nav.js';
 import { dayKey, fmtDay } from './progress.js';
-import { repertoireExit } from './logic.js';
+import { normLichessGame, repertoireExit } from './logic.js';
+import { ccRecentGames } from './chesscom.js';
 
 /* ================= daily practice ================= */
 // A plan for each day, built from widely shared study advice: short daily sessions, warm up, clear your reviews
@@ -25,9 +27,9 @@ const Daily = {
   plan: store.get('daily', null), days: store.get('dailyDays', []), budget: store.get('dailyBudget', 20), active: null, weakQueue: [],
   today(){ return dayKey(Date.now()); },
   ensure(){
-    const sel = (S.sel[0] || '') + '|' + S.color;
-    if(this.plan && this.plan.date === this.today() && this.plan.sel === sel && this.plan.budget === this.budget) return this.plan;
-    const keep = this.plan && this.plan.date === this.today() && this.plan.sel === sel ? this.plan : null;  // budget changed: keep counts
+    const sel = (S.sel[0] || '') + '|' + S.color, gamesOn = gamesSources().length > 0;
+    if(this.plan && this.plan.date === this.today() && this.plan.sel === sel && this.plan.budget === this.budget && this.plan.gamesOn === gamesOn) return this.plan;
+    const keep = this.plan && this.plan.date === this.today() && this.plan.sel === sel ? this.plan : null;  // budget or sources changed: keep counts
     const B = BUDGETS[this.budget], due = dueCards().length;
     const hard = relevantCards().filter(([k, c]) => c.lapses > 0).length;
     const steps = [
@@ -36,10 +38,10 @@ const Daily = {
       {id: 'new', title: 'Learn new lines', why: due > B.review * 2 ? 'Skipped today: you have a large review backlog, and adding new lines on top of it makes everything harder to retain.' : 'A few new lines a day, not more: small steps stick better than long cramming sessions.', target: due > B.review * 2 ? 0 : B.newLines, unit: 'line'},
       {id: 'weak', title: 'Fix your repeated mistakes', why: 'The positions you have missed most get focused, repeated practice.', target: Math.min(B.weak, hard), unit: 'position'},
       {id: 'ideas', title: 'Understand the plans', why: 'Knowing why the moves are played lets you find good moves when your opponent leaves the book.', target: B.ideas ? 1 : 0, unit: 'read'},
-      {id: 'games', title: 'Check your own games', why: 'Comparing your recent games with your repertoire shows exactly where you went wrong in real play.', target: Explorer.enabled() ? 1 : 0, unit: 'check'}
+      {id: 'games', title: 'Check your own games', why: 'Comparing your recent games with your repertoire shows exactly where you went wrong in real play.', target: gamesOn ? 1 : 0, unit: 'check'}
     ].filter(s => s.target > 0);
     steps.forEach(s => { const old = keep && keep.steps.find(o => o.id === s.id); s.done = old ? Math.min(old.done, s.target) : 0; });
-    this.plan = {date: this.today(), sel, budget: this.budget, steps};
+    this.plan = {date: this.today(), sel, budget: this.budget, gamesOn, steps};
     this.save(); return this.plan;
   },
   save(){ store.set('daily', this.plan); },
@@ -133,38 +135,41 @@ async function showIdeas(){
   if(wi.wiki){ const d = $('tdIdeasWiki').querySelector('details'); if(d) d.open = true; }
   else { $('tdIdeasWiki').innerHTML = '<div class="ins-wiki ins-muted">No explanation of this position was found on Wikibooks.</div>'; $('tdIdeasWiki').style.display = ''; }
 }
-// "Check your own games": where did you leave your repertoire in your recent Lichess games?
+// where your recent games come from: chess.com (username) and Lichess (connected)
+const gamesSources = () => [S.ccUser && 'chess.com', Explorer.enabled() && 'Lichess'].filter(Boolean);
+async function lichessGames(max){
+  let user = S.user;
+  if(!user || user === 'Lichess'){
+    const a = await fetch('https://lichess.org/api/account', {headers: {Authorization: 'Bearer ' + S.token}});
+    if(a.ok){ user = (await a.json()).username; S.user = user; store.set('user', user); }
+  }
+  if(!user) throw new Error('Could not find your Lichess username.');
+  const res = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}?max=${max}&opening=true&moves=true&clocks=false&evals=false`,
+    {headers: {Authorization: 'Bearer ' + S.token, Accept: 'application/x-ndjson'}});
+  if(!res.ok) throw new Error('Lichess answered with an error (' + res.status + ').');
+  return (await res.text()).split('\n').filter(Boolean).map(l => { try{ return normLichessGame(JSON.parse(l), user); }catch(e){ return null; } }).filter(Boolean);
+}
+// "Check your own games": where did you leave your repertoire in your recent games?
 async function checkGames(){
   openToday(true);
-  const box = $('tdExtra'); box.hidden = false;
-  box.innerHTML = '<div class="pg-panel"><h2>Your recent games</h2><div id="tdGamesOut">Loading your games from Lichess…</div><div class="inline" style="margin-top:12px"><button class="btn primary" id="tdGamesDone">Done</button></div></div>';
+  const src = gamesSources(), box = $('tdExtra'); box.hidden = false;
+  box.innerHTML = `<div class="pg-panel"><h2>Your recent games</h2><div id="tdGamesOut">Loading your games from ${src.join(' and ')}…</div><div class="inline" style="margin-top:12px"><button class="btn primary" id="tdGamesDone">Done</button></div></div>`;
   $('tdGamesDone').onclick = () => { Daily.count('games'); box.hidden = true; renderToday(); };
   box.scrollIntoView({block: 'start'});
   const out = $('tdGamesOut');
   try{
-    let user = S.user;
-    if(!user || user === 'Lichess'){
-      const a = await fetch('https://lichess.org/api/account', {headers: {Authorization: 'Bearer ' + S.token}});
-      if(a.ok){ user = (await a.json()).username; S.user = user; store.set('user', user); }
-    }
-    if(!user) throw new Error('Could not find your Lichess username.');
     // all recent finished games (any speed, rated or casual); each one is either analysed or listed with the reason it was left out
-    const res = await fetch(`https://lichess.org/api/games/user/${encodeURIComponent(user)}?max=30&opening=true&moves=true&clocks=false&evals=true`,
-      {headers: {Authorization: 'Bearer ' + S.token, Accept: 'application/x-ndjson'}});
-    if(!res.ok) throw new Error('Lichess answered with an error (' + res.status + ').');
-    const games = (await res.text()).split('\n').filter(Boolean).map(l => { try{ return JSON.parse(l); }catch(e){ return null; } }).filter(Boolean);
-    const me = user.toLowerCase(), colorName = c => c === 'w' ? 'White' : 'Black';
+    const loads = await Promise.allSettled([S.ccUser ? ccRecentGames(S.ccUser, 30) : [], Explorer.enabled() ? lichessGames(30) : []]);
+    const failed = loads.filter(l => l.status === 'rejected').map(l => l.reason && l.reason.message);
+    if(failed.length === loads.filter((l, i) => [S.ccUser, Explorer.enabled()][i]).length) throw new Error(failed.join(' '));
+    const games = loads.flatMap(l => l.status === 'fulfilled' ? l.value : []).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
+    const failNote = failed.length ? `<p class="help">${failed.map(esc).join(' ')}</p>` : '';
+    const colorName = c => c === 'w' ? 'White' : 'Black';
     const mv = n => `${Math.floor(n / 2) + 1}${n % 2 ? '…' : '.'}`;
     const rows = [], others = [];
     for(const gm of games){
-      const wName = ((gm.players.white.user || {}).name || '').toLowerCase();
-      const myColor = wName === me ? 'w' : 'b';
-      const opp = myColor === 'w' ? gm.players.black : gm.players.white;
-      const oppName = (opp.user && opp.user.name) || (opp.aiLevel ? 'Stockfish level ' + opp.aiLevel : 'Anonymous');
-      const opening = gm.opening && gm.opening.name ? gm.opening.name : '';
-      const sans = (gm.moves || '').split(' ').filter(Boolean);
-      const base = {gm, oppName};
-      if(gm.variant && gm.variant !== 'standard'){ others.push({...base, why: `${gm.variant} variant`}); continue; }
+      const {myColor, oppName, opening, sans} = gm, base = {gm, oppName};
+      if(gm.variant !== 'standard'){ others.push({...base, why: gm.variant === 'unreadable' ? 'the moves could not be read' : `${gm.variant} variant`}); continue; }
       if(myColor !== S.color){ others.push({...base, why: `you had ${colorName(myColor)}${opening ? ` (${opening})` : ''}`}); continue; }
       const {verdict, outAt} = repertoireExit(sans, S.color, candidates, Chess);
       if(!verdict){
@@ -175,18 +180,27 @@ async function checkGames(){
     }
     const dateOf = gm => new Date(gm.createdAt).toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
     const kindOf = gm => `${esc(gm.speed || '')}${gm.rated ? '' : ', casual'}`;
-    const link = (gm, name) => `<a href="https://lichess.org/${encodeURIComponent(gm.id)}" target="_blank" rel="noopener">vs ${esc(name)}</a>`;
+    const link = (gm, name) => `<a href="${esc(gm.url)}" target="_blank" rel="noopener">vs ${esc(name)}</a>`;
+    const where = gm => src.length > 1 ? `, ${gm.site}` : '';
     const otherHtml = others.length ? `<details style="margin-top:10px"><summary>${others.length} other recent game${others.length > 1 ? 's' : ''}, not in ${esc(S.sel[0])} as ${colorName(S.color)}</summary><ul class="hard">` +
-      others.map(o => `<li><div><div class="hm">${link(o.gm, o.oppName)}, ${kindOf(o.gm)}, ${dateOf(o.gm)}</div><div class="hs">Left out: ${esc(o.why)}.</div></div></li>`).join('') + '</ul></details>' : '';
-    const note = `<p class="help">Your last ${games.length} finished games on Lichess, all speeds. A game still in progress appears once it is over.</p>`;
+      others.map(o => `<li><div><div class="hm">${link(o.gm, o.oppName)}, ${kindOf(o.gm)}, ${dateOf(o.gm)}${where(o.gm)}</div><div class="hs">Left out: ${esc(o.why)}.</div></div></li>`).join('') + '</ul></details>' : '';
+    const note = failNote + `<p class="help">Your last ${games.length} finished games on ${src.join(' and ')}, all speeds. A game still in progress appears once it is over${S.ccUser ? '; chess.com can take a few minutes to list a new game' : ''}.</p>`;
     if(!rows.length){ out.innerHTML = `<p style="margin:0">None of your last ${games.length} games reached ${esc(S.sel[0])} with you as ${colorName(S.color)}.</p>` + otherHtml + note; return; }
+    // a move outside your named lines is not a mistake when it is sound: same test as during training
+    const outside = rows.filter(r => r.verdict.kind === 'you');
+    for(let i = 0; i < outside.length; i++){
+      out.textContent = `Checking your moves outside the book (${i + 1} of ${outside.length})…`;
+      const v = outside[i].verdict, sound = await soundMove(v.fen, v.played);
+      if(sound){ v.kind = 'sound'; v.sound = sound; }
+    }
     const yours = rows.filter(r => r.verdict.kind === 'you');
     out.innerHTML = `<p style="margin:0 0 8px">${rows.length} recent game${rows.length > 1 ? 's' : ''} in this opening. You left your repertoire in ${yours.length}.</p><ul class="hard">` + rows.map((r, i) => {
       const v = r.verdict;
       const what = v.kind === 'you' ? `You played <b>${r.mv(v.ply)} ${esc(v.played)}</b>; the book continues ${v.best.map(esc).join(', ')}.`
+        : v.kind === 'sound' ? `You played ${r.mv(v.ply)} ${esc(v.played)}, outside your named lines but sound: ${soundWhy(v.sound, esc(v.played))}`
         : v.kind === 'opp' ? `Your opponent left the book with ${r.mv(v.ply)} ${esc(v.played)}. You were on track until then.`
         : v.kind === 'short' ? 'The game ended while you were still in the book.' : `You followed the book until it ended at move ${Math.floor(v.ply / 2) + 1}.`;
-      return `<li><div><div class="hm">${link(r.gm, r.oppName)}, ${kindOf(r.gm)}, ${dateOf(r.gm)}</div><div class="hs" style="font-size:13.5px;color:var(--ink)">${what}</div></div><div class="inline" style="flex:none"><a class="btn primary" href="https://lichess.org/${encodeURIComponent(r.gm.id)}/${S.color === 'w' ? 'white' : 'black'}" target="_blank" rel="noopener">Analyse on Lichess</a>${v.kind === 'you' ? `<button class="btn" data-fix="${i}">Practise</button>` : ''}</div></li>`;
+      return `<li><div><div class="hm">${link(r.gm, r.oppName)}, ${kindOf(r.gm)}, ${dateOf(r.gm)}${where(r.gm)}</div><div class="hs" style="font-size:13.5px;color:var(--ink)">${what}</div></div><div class="inline" style="flex:none"><a class="btn primary" href="${esc(r.gm.analyse)}" target="_blank" rel="noopener">Analyse on ${r.gm.site}</a>${v.kind === 'you' ? `<button class="btn" data-fix="${i}">Practise</button>` : ''}</div></li>`;
     }).join('') + '</ul>' + otherHtml + note;
     out.querySelectorAll('[data-fix]').forEach(b => b.onclick = () => {
       const v = rows[+b.dataset.fix].verdict, key = posKey(v.fen);
@@ -199,6 +213,11 @@ async function checkGames(){
     });
   }catch(e){ out.textContent = (e && e.message) || 'Could not load your games.'; }
 }
+// why a move outside your lines is fine, in the trainer's words
+const soundWhy = (s, san) => s.why === 'theory' ? `${san} is theory too (${esc(s.otherName)}).`
+  : s.why === 'masters' ? `masters play it in ${s.n.toLocaleString()} of ${s.total.toLocaleString()} games.`
+  : s.why === 'level' ? 'players at your level score as well with it as with the usual moves.'
+  : `Stockfish rates it ${s.engine.you >= s.engine.book ? 'at least' : 'about'} as good as the book move (${fmtEval(s.engine.you)} against ${fmtEval(s.engine.book)}).`;
 function openToday(keepActive, keepExtra){
   if(!keepActive) Daily.active = null;
   showPage('today', false); if(!keepExtra) $('tdExtra').hidden = true;

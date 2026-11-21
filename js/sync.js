@@ -31,7 +31,7 @@ function mergeProgress(data){
 const SDK = 'https://www.gstatic.com/firebasejs/12.19.0/';
 const CHUNK = 700000;   // a Firestore document holds at most 1 MiB, so the progress is split into pieces
 // progress that belongs to the person signed in: cleared on sign-out so the next person starts clean
-const PERSONAL = ['cards', 'log', 'coordLog', 'coordRounds', 'time', 'dailyDays', 'daily', 'session', 'token', 'user', 'ratings', 'rLines', 'pkce', 'fbHash', 'fbLast'];
+const PERSONAL = ['cards', 'log', 'coordLog', 'coordRounds', 'time', 'dailyDays', 'daily', 'session', 'token', 'user', 'ratings', 'speeds', 'ccUser', 'ccProfile', 'ccAuto', 'rLines', 'pkce', 'fbHash', 'fbLast'];
 let A = null, F = null, auth = null, db = null;
 
 function hash(str){   // cyrb53: tells whether the progress changed without downloading it

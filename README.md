@@ -11,7 +11,7 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Openings**: 3,865 named lines from the Lichess opening book, searchable by
   name, ECO code or moves. Train as White or Black, a whole opening or one variation.
 - **Move statistics**: with a Lichess connection, the opponent plays the moves
-  that real players choose (Lichess players by rating, or masters).
+  that real players choose (Lichess players by rating and time control, or masters).
 - **Stockfish**: checks your moves once theory ends, and analyses your games. An optional
   evaluation bar and the top 3 engine lines (hidden on your turn until you ask).
 - **Explanations**: for each mistake, facts computed from the position and Stockfish's
@@ -20,7 +20,10 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Spaced repetition**: every position you must find is a card; missed positions
   come back sooner.
 - **Today**: a daily plan (warm-up, reviews, new lines, mistakes, plans, and where you left
-  your repertoire in your recent Lichess games).
+  your repertoire in your recent chess.com or Lichess games).
+- **Chess.com**: with your username (no sign-in), your chess.com games are checked against
+  your repertoire, and the statistics follow your chess.com level: your most played time
+  control, and your rating converted to the Lichess scale.
 - **Squares**: play famous games on the board from their written moves (also the daily warm-up).
 - **Progress**: time per day, calendar, streaks, accuracy per opening.
 - **Accounts**: sign in with Google or with an email and a password (Firebase) to keep your progress on all
@@ -63,6 +66,7 @@ js/settings.js     Settings page: Lichess sign-in, statistics, backup
 js/sync.js         merging progress, accounts and sync (Firebase Auth + Firestore)
 js/firebase-config.js  the Firebase project's web config (null = no accounts)
 js/explorer.js     Lichess Opening Explorer client
+js/chesscom.js     chess.com public API: your profile and recent games
 js/analysis.js     plain-language facts about a move (no AI)
 js/wikibooks.js    opening explanations from Wikibooks
 js/explain.js      explanations: position facts and Wikibooks text
@@ -94,6 +98,7 @@ renders at start-up lives in each module's `init()`, which `main.js` calls in or
   Deep Blue vs Kasparov 1997 from the python-chess test data.
 - Opening explanations: Wikibooks, Chess Opening Theory (CC BY-SA), fetched live and credited with a link.
 - Move statistics: Lichess Opening Explorer.
+- Your chess.com games and level: chess.com Published-Data API.
 
 ## Hosting and accounts (Firebase)
 

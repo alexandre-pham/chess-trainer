@@ -72,10 +72,19 @@
     <h1 class="pg-h">Settings</h1>
     <div class="set-card">
       <div class="set-row">
+        <div class="set-lbl"><b>Chess.com</b><span>Your username, to check your games and play at your level. No sign-in needed.</span></div>
+        <div class="set-ctl">
+          <input type="text" id="ccUser" placeholder="Chess.com username" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Chess.com username">
+          <label class="check"><input type="checkbox" id="ccAuto"> Match the move statistics to my chess.com level</label>
+          <div class="conn" id="ccConn"></div>
+        </div>
+      </div>
+      <div class="set-row">
         <div class="set-lbl"><b>Move statistics</b><span>Which games the trainer's moves come from.</span></div>
         <div class="set-ctl">
           <div class="inline" id="dbChoice"></div>
           <div class="inline" id="ratingChoice"></div>
+          <div class="inline" id="speedChoice"></div>
           <div id="lichessAuth"></div>
           <div class="conn" id="exConn"></div>
         </div>

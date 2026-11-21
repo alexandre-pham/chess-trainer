@@ -1,4 +1,4 @@
-// The Settings page: Lichess sign-in, move statistics and backup controls.
+// The Settings page: chess.com username, Lichess sign-in, move statistics and backup controls.
 import { $, b64url, esc, randomStr, store } from './util.js';
 import { S } from './book.js';
 import { cards, moveLog } from './srs.js';
@@ -9,6 +9,8 @@ import { coordLog, coordRounds } from './squares.js';
 import { Daily } from './daily.js';
 import { timeLog } from './progress.js';
 import { showPage } from './nav.js';
+import { ccStats } from './chesscom.js';
+import { RATING_GROUPS, SPEEDS_FOR, mostPlayed, ratingGroups, toLichessRating } from './logic.js';
 
 /* --- connection settings --- */
 /* --- Lichess sign-in (OAuth 2 with PKCE: you log in on lichess.org, this page never sees your password) --- */
@@ -68,14 +70,53 @@ function renderExplorerChoices(){
   $('dbChoice').innerHTML = [['lichess','Lichess players'],['masters','Masters']].map(([v,l]) =>
     `<button class="chip" data-db="${v}" aria-pressed="${S.exDb === v}">${l}</button>`).join('');
   $('dbChoice').querySelectorAll('[data-db]').forEach(b => b.onclick = () => { S.exDb = b.dataset.db; store.set('exDb', S.exDb); Explorer.reset(); renderExplorerChoices(); });
-  const R = [1000,1200,1400,1600,1800,2000,2200,2500];
-  $('ratingChoice').hidden = S.exDb !== 'lichess';
-  $('ratingChoice').innerHTML = '<span class="help" style="margin:0 4px 0 0">Ratings</span>' + R.map(r => `<button class="chip" data-r="${r}" aria-pressed="${S.ratings.includes(r)}">${r}${r === 2500 ? '+' : ''}</button>`).join('');
+  $('ratingChoice').hidden = $('speedChoice').hidden = S.exDb !== 'lichess';
+  $('ratingChoice').innerHTML = '<span class="help chips-lbl">Ratings</span>' + RATING_GROUPS.map(r => `<button class="chip" data-r="${r}" aria-pressed="${S.ratings.includes(r)}">${r}${r === 2500 ? '+' : ''}</button>`).join('');
   $('ratingChoice').querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
     const r = +b.dataset.r; S.ratings = S.ratings.includes(r) ? S.ratings.filter(x => x !== r) : [...S.ratings, r].sort((a,b) => a-b);
     if(!S.ratings.length) S.ratings = [r];
-    store.set('ratings', S.ratings); Explorer.reset(); renderExplorerChoices();
+    store.set('ratings', S.ratings); manualLevel();
   });
+  $('speedChoice').innerHTML = '<span class="help chips-lbl">Games</span>' + SPEEDS.map(([v, l]) => `<button class="chip" data-sp="${v}" aria-pressed="${S.speeds.includes(v)}">${l}</button>`).join('');
+  $('speedChoice').querySelectorAll('[data-sp]').forEach(b => b.onclick = () => {
+    const v = b.dataset.sp; S.speeds = S.speeds.includes(v) ? S.speeds.filter(x => x !== v) : SPEEDS.map(x => x[0]).filter(x => x === v || S.speeds.includes(x));
+    if(!S.speeds.length) S.speeds = [v];
+    store.set('speeds', S.speeds); manualLevel();
+  });
+}
+const SPEEDS = [['bullet', 'Bullet'], ['blitz', 'Blitz'], ['rapid', 'Rapid'], ['classical', 'Classical'], ['correspondence', 'Daily']];
+// choosing ratings or games by hand stops following the chess.com level
+function manualLevel(){ S.ccAuto = 0; store.set('ccAuto', 0); Explorer.reset(); renderExplorerChoices(); renderCc(); }
+
+/* --- chess.com: your level sets the Lichess ratings and games the trainer's moves come from --- */
+const DAY = 86400000;
+async function refreshCc(force){
+  if(!S.ccUser){ S.ccProfile = null; store.set('ccProfile', null); renderCc(); return; }
+  const p = S.ccProfile;
+  if(!force && p && p.user === S.ccUser.toLowerCase() && Date.now() - p.at < DAY){ applyCcLevel(); renderCc(); return; }
+  $('ccConn').className = 'conn'; $('ccConn').textContent = 'Reading your chess.com profile…';
+  try{
+    const mp = mostPlayed(await ccStats(S.ccUser));
+    if(!mp) throw new Error('No games found on this chess.com account.');
+    S.ccProfile = {...mp, user: S.ccUser.toLowerCase(), at: Date.now()}; store.set('ccProfile', S.ccProfile);
+    applyCcLevel(); renderCc();
+  }catch(e){ $('ccConn').className = 'conn err'; $('ccConn').textContent = e.message; }
+}
+function applyCcLevel(){
+  if(!S.ccAuto || !S.ccProfile) return;
+  const ratings = ratingGroups(toLichessRating(S.ccProfile.rating)), speeds = SPEEDS_FOR[S.ccProfile.timeClass];
+  if(ratings.join() === S.ratings.join() && speeds.join() === S.speeds.join()) return;
+  S.ratings = ratings; S.speeds = speeds; store.set('ratings', ratings); store.set('speeds', speeds);
+  Explorer.reset(); renderExplorerChoices();
+}
+function renderCc(){
+  $('ccUser').value = S.ccUser; $('ccAuto').checked = !!S.ccAuto; $('ccAuto').disabled = !S.ccUser;
+  const p = S.ccProfile, el = $('ccConn');
+  if(!S.ccUser || !p){ if(!S.ccUser){ el.className = 'conn'; el.textContent = ''; } return; }
+  const li = toLichessRating(p.rating), g = ratingGroups(li), top = g[1] === 2500 ? '2500+' : g[1] + 199;
+  el.className = 'conn ok';
+  el.textContent = `${p.timeClass[0].toUpperCase() + p.timeClass.slice(1)} ${p.rating} on chess.com (${p.games} games), about ${li} on Lichess.` +
+    (S.ccAuto ? ` The trainer plays like Lichess players rated ${g[0]}–${top}, in ${SPEEDS_FOR[p.timeClass].join(' and ')} games.` : '');
 }
 async function checkExplorer(){
   const el = $('exConn');
@@ -89,7 +130,7 @@ async function checkExplorer(){
 
 /* --- export / import --- */
 
-export { checkExplorer, renderAuth, renderExplorerChoices };
+export { checkExplorer, refreshCc, renderAuth, renderExplorerChoices };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){
@@ -111,6 +152,8 @@ function init(){
       await finishLogin(code, state);
     }, 0);
   })();
+  $('ccUser').onchange = e => { S.ccUser = e.target.value.trim(); store.set('ccUser', S.ccUser); if(S.ccUser){ S.ccAuto = 1; store.set('ccAuto', 1); } refreshCc(true); };
+  $('ccAuto').onchange = e => { S.ccAuto = e.target.checked ? 1 : 0; store.set('ccAuto', S.ccAuto); applyCcLevel(); renderCc(); };
   $('exportBtn').onclick = () => {
     const blob = new Blob([JSON.stringify({version: 5, cards, log: moveLog, coordLog, coordRounds, dailyDays: Daily.days, time: timeLog})], {type: 'application/json'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'opening-trainer-progress.json'; a.click();

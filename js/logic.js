@@ -56,4 +56,66 @@ function repertoireExit(sans, color, candidates, Chess, maxPlies = 40){
   return {verdict: verdict && entered && oppIn ? verdict : null, outAt};
 }
 
-export { mergeCards, mergeTime, repertoireExit, schedule, unionInto };
+/* ================= chess.com ================= */
+// chess.com rating to Lichess rating, same strength (approximate, from published comparisons)
+const CC_TO_LICHESS = [[400, 900], [800, 1250], [1200, 1550], [1600, 1850], [2000, 2150], [2400, 2500], [2800, 2850]];
+function toLichessRating(cc){
+  const t = CC_TO_LICHESS;
+  if(cc <= t[0][0]) return t[0][1] - (t[0][0] - cc);
+  for(let i = 1; i < t.length; i++){
+    const [x0, y0] = t[i - 1], [x1, y1] = t[i];
+    if(cc <= x1) return Math.round(y0 + (cc - x0) * (y1 - y0) / (x1 - x0));
+  }
+  return cc + (t[t.length - 1][1] - t[t.length - 1][0]);
+}
+// the Lichess explorer's rating groups closest to a rating: its own group and the nearer neighbour
+const RATING_GROUPS = [1000, 1200, 1400, 1600, 1800, 2000, 2200, 2500];
+function ratingGroups(r){
+  const G = RATING_GROUPS;
+  if(r < G[0]) return [G[0], G[1]];
+  let i = G.length - 1; while(G[i] > r) i--;
+  if(i === G.length - 1) return [G[i - 1], G[i]];
+  const upper = r - G[i] >= (G[i + 1] - G[i]) / 2;
+  return upper || i === 0 ? [G[i], G[i + 1]] : [G[i - 1], G[i]];
+}
+// the time control you play most on chess.com, from /pub/player/{user}/stats
+const CC_CLASSES = {chess_bullet: 'bullet', chess_blitz: 'blitz', chess_rapid: 'rapid', chess_daily: 'daily'};
+function mostPlayed(stats){
+  let best = null;
+  for(const [k, tc] of Object.entries(CC_CLASSES)){
+    const s = stats && stats[k]; if(!s || !s.last) continue;
+    const r = s.record || {}, games = (r.win || 0) + (r.loss || 0) + (r.draw || 0);
+    if(!best || games > best.games) best = {timeClass: tc, rating: s.last.rating, games};
+  }
+  return best;
+}
+// Lichess explorer speeds for a chess.com time class
+const SPEEDS_FOR = {bullet: ['bullet'], blitz: ['blitz'], rapid: ['rapid', 'classical'], daily: ['correspondence']};
+
+/* ================= games from both sites, in one shape ================= */
+// {site, id, url, analyse, variant, myColor, oppName, speed, rated, createdAt, sans, opening}
+function normLichessGame(gm, me){
+  const wName = ((gm.players.white.user || {}).name || '').toLowerCase();
+  const myColor = wName === me.toLowerCase() ? 'w' : 'b';
+  const opp = myColor === 'w' ? gm.players.black : gm.players.white;
+  const url = 'https://lichess.org/' + encodeURIComponent(gm.id);
+  return {site: 'Lichess', id: gm.id, url, analyse: url + (myColor === 'w' ? '/white' : '/black'), variant: gm.variant || 'standard', myColor,
+    oppName: (opp.user && opp.user.name) || (opp.aiLevel ? 'Stockfish level ' + opp.aiLevel : 'Anonymous'),
+    speed: gm.speed || '', rated: !!gm.rated, createdAt: gm.createdAt, sans: (gm.moves || '').split(' ').filter(Boolean), opening: (gm.opening && gm.opening.name) || ''};
+}
+// the opening's name from chess.com's link: ".../Sicilian-Defense-Najdorf-Variation-6.Be3" gives "Sicilian Defense Najdorf Variation"
+function ccOpening(ecoUrl){
+  const slug = (ecoUrl || '').split('/openings/')[1] || '';
+  const words = []; for(const w of slug.split('-')){ if(/^\d+\./.test(w)) break; words.push(w); }
+  return decodeURIComponent(words.join(' '));
+}
+function normChesscomGame(g, me, Chess){
+  const myColor = (g.white.username || '').toLowerCase() === me.toLowerCase() ? 'w' : 'b';
+  const opp = myColor === 'w' ? g.black : g.white;
+  const ch = new Chess(), standardStart = !g.initial_setup || g.initial_setup === ch.fen();
+  const ok = g.rules === 'chess' && standardStart && ch.load_pgn(g.pgn || '');
+  return {site: 'chess.com', id: g.uuid || g.url, url: g.url, analyse: g.url, variant: ok ? 'standard' : g.rules === 'chess' ? 'unreadable' : g.rules, myColor,
+    oppName: opp.username || 'Anonymous', speed: g.time_class || '', rated: !!g.rated, createdAt: (g.end_time || 0) * 1000, sans: ok ? ch.history() : [], opening: ccOpening(g.eco)};
+}
+
+export { RATING_GROUPS, SPEEDS_FOR, ccOpening, mergeCards, mergeTime, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };

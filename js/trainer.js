@@ -226,6 +226,14 @@ async function soundCheck(info){
   info.engine = e; info.verdict = verdictFor(e.loss); info.engineState = 'done';
   return e.loss <= SOUND_LOSS ? {why: 'engine'} : null;
 }
+// the same test for a move in one of your games: {why, ...} when it is sound, otherwise null
+async function soundMove(before, san){
+  const m = new Chess(before).move(san), cands = candidates(before);
+  if(!m || !cands.length) return null;
+  const all = bookMoves(before), info = {before, move: m, cands: cands.map(c => ({san: c.san})), otherName: all[m.san] ? nameAfter(before, m.san, shortestLine(all[m.san])) : null};
+  Engine.init();
+  try{ const sound = await soundCheck(info); return sound && {...sound, otherName: info.otherName, engine: info.engine}; }catch(e){ console.error(e); return null; }
+}
 // a sound move outside your line: no mistake is counted, the position just comes back a little sooner
 function acceptSound(info){
   userMarks[userMarks.length - 1] = 's'; redo = [];
@@ -615,7 +623,7 @@ const sqAt = (x, y) => { const el = document.elementFromPoint(x, y); const s = e
 /* --- training stats only once there is something to show --- */
 function syncStats(){ const st = document.querySelector('#train .stats'); if(st) st.hidden = ['sGood', 'sBad', 'sDue', 'sKnown'].every(id => $(id).textContent === '0'); }
 
-export { BRUSH, enterTraining, restoreSession, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
+export { BRUSH, enterTraining, soundMove, restoreSession, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

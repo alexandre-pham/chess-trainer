@@ -66,7 +66,7 @@ function renderEngineNote(){
   if(Engine.state === 'ready') parts.push(`${Engine.name || 'Stockfish'} is ready.`);
   else if(Engine.state === 'failed') parts.push('Stockfish could not start in this browser.');
   else parts.push('Loading Stockfish…');
-  parts.push(Explorer.enabled() ? `Statistics: ${Explorer.label()}.` : 'Statistics are off (no Lichess token).');
+  parts.push(Explorer.enabled() ? `Statistics: ${Explorer.label()}.` : 'Statistics are off (Lichess is not connected).');
   $('engineNote').textContent = parts.join(' ');
 }
 function pvToSan(fen, pv, max){
