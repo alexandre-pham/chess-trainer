@@ -256,6 +256,7 @@ function gradeHere(before, result){
 /* ================= your move ================= */
 function tryUserMove(from, to){
   if(status === 'sbuser') return sandboxMove(from, to);
+  if(status === 'browse') return playTheirMove(from, to);
   if(status !== 'user') return false;
   const before = game.fen(), piece = game.get(from);
   const promo = piece && piece.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : undefined;
@@ -274,6 +275,18 @@ function tryUserMove(from, to){
       if(sid === sessionId && status === 'checking') accept(before, m, {kind: 'unchecked', san: m.san});
     });
   }
+  return true;
+}
+// back at a position where the opponent is to move, you play their move: not graded, the later moves are replaced
+function playTheirMove(from, to){
+  const piece = game.get(from), promo = piece && piece.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : undefined;
+  const m = game.move(promo ? {from, to, promotion: promo} : {from, to});
+  if(!m) return false;
+  sessionId++; redo = []; userMarks.push('t');
+  selectedSq = null; hintOn = false; arrowsList = []; explainInfo = null; wrongInfo = null; failedHere = null; reviewing = null;
+  if(punish && game.history().length <= punish.ply) punish = null;
+  lastFeedback = {kind: 'theirs', san: m.san};
+  recomputeName(); recomputePhase(); nextTurn();
   return true;
 }
 function accept(before, m, feedback, result){
@@ -507,7 +520,7 @@ async function toggleHint(){
 }
 function renderBoard(){
   const hist = game.history({verbose:true}), last = hist[hist.length-1];
-  const legal = selectedSq && (status === 'user' || status === 'sbuser') ? game.moves({square: selectedSq, verbose: true}) : [];
+  const legal = selectedSq && (status === 'user' || status === 'sbuser' || status === 'browse') ? game.moves({square: selectedSq, verbose: true}) : [];
   const html = [];
   squares().forEach((sq, idx) => {
     const fi = files.indexOf(sq[0]), rk = +sq[1], light = (fi + rk) % 2 === 0, p = game.get(sq);
@@ -563,7 +576,7 @@ function renderMoves(){
     for(const x of [all[i], all[i + 1]]){
       if(!x){ s += '<span class="m empty"></span>'; continue; }
       const cls = ['m'];
-      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.mark === 's') cls.push('s'); if(x.mark === 'm') cls.push('mis'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
+      if(x.mark === 'u') cls.push('u'); if(x.mark === 'x') cls.push('x'); if(x.mark === 's') cls.push('s'); if(x.mark === 'm') cls.push('mis'); if(x.mark === 't') cls.push('th'); if(x.ahead) cls.push('ahead'); if(x.ply === h.length) cls.push('cur');
       s += `<span class="${cls.join(' ')}" data-ply="${x.ply}" role="button" tabindex="0">${esc(x.san)}</span>`;
     }
   }
@@ -736,7 +749,7 @@ function renderStatus(){
     acts = [['Restart line', startLine]];
   } else if(status === 'browse'){
     title = 'Going through the game';
-    body = `It is the opponent's move here. Step back once more to play a different move yourself, or go forward with ▶.`;
+    body = `It is the opponent's move here. Move one of their pieces to play their move instead; the game goes on from there. Or step back once more to replay your own move, or go forward with ▶.`;
     acts = [['Back to the current position', navLast, 'primary'], ['Restart line', startLine]];
   } else if(status === 'user' && punish && game.fen() === punish.fen && !redo.length){
     const p = punish, h = game.history(), prev = new Chess(); h.slice(0, -1).forEach(x => prev.move(x));
@@ -774,6 +787,7 @@ function feedbackLine(){
   if(f.kind === 'shownLine') return `The line continues with <b>${esc(f.san)}</b>.`;
   if(f.kind === 'punished') return ok(`Mistake punished: ${esc(f.san)}`) + ` keeps the advantage (Stockfish ${fmtEval(f.you)}${f.san !== f.p.reply ? `; ${esc(f.p.reply)} was ${fmtEval(f.p.best)}` : ''}).${f.score != null ? ` Players at your level score ${pct(f.score)} with it.` : ''}`;
   if(f.kind === 'punishShown') return `<b>${esc(f.san)}</b> punishes ${esc(f.p.san)} (Stockfish ${fmtEval(f.p.best)}). This position will come back for review.`;
+  if(f.kind === 'theirs') return `You played ${esc(f.san)} for your opponent.`;
   if(f.kind === 'kept') return `You kept ${esc(f.san)}. It is sound, but the main move will be asked again later.`;
   return '';
 }
@@ -859,7 +873,7 @@ function init(){
       $('boardWrap').setPointerCapture(ev.pointerId); renderArrows(); return;
     }
     if(ev.button === 0 && drawings.length){ drawings = []; renderArrows(); }  // a normal click clears your drawings
-    if(status !== 'user' && status !== 'sbuser') return;
+    if(status !== 'user' && status !== 'sbuser' && status !== 'browse') return;
     const sq = sqAt(ev.clientX, ev.clientY); if(!sq) return;
     const p = game.get(sq);
     if(selectedSq && sq !== selectedSq && !(p && p.color === game.turn())){
