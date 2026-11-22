@@ -15,7 +15,7 @@ import { showPage } from './nav.js';
 let phase = 'book', phaseEndName = null, game, status = 'idle', lastNamed = null, wrongInfo = null, selectedSq = null, hintOn = false, arrowsList = [];
 let lastFeedback = null, explainInfo = null, nameFresh = false, reviewing = null, failedHere = null, sessionId = 0;
 // punish mode: the common mistake you must punish now, and how the line ended
-let punish = null, punishDone = null;
+let punish = null, punishUsed = false;  // one common mistake per line
 // playing out a wrong move against Stockfish: {ply of the wrong move, its wrongInfo, your eval}
 let sandbox = null;
 // keep playing past the move limit, to the end of the game
@@ -32,7 +32,7 @@ function resetLine(){
   sessionId++; redo = [];
   game = new Chess(); phase = 'book'; phaseEndName = null; userMarks.length = 0; lastFeedback = null; explainInfo = null;
   lastNamed = null; wrongInfo = null; selectedSq = null; hintOn = false; arrowsList = []; failedHere = null; reviewing = null;
-  punish = null; punishDone = null; sandbox = null; playOn = false; ended = null;
+  punish = null; punishUsed = false; sandbox = null; playOn = false; ended = null;
 }
 function startLine(){ resetLine(); updateName(); renderAll(); nextTurn(); }
 function startReview(){
@@ -118,12 +118,12 @@ let statsEnd = null;
 async function oppMove(){
   if(status !== 'opp') return;
   const sid = sessionId, fen = game.fen();
-  if(S.punish && Explorer.enabled() && !punish && !punishDone && game.history().length >= 3){
+  if(S.punish && Explorer.enabled() && !punish && !punishUsed && game.history().length >= 3){
     const mk = await findMistake(fen);
     if(sid !== sessionId || game.fen() !== fen) return;
     if(mk && Math.random() < 0.85){
       game.move(mk.san); userMarks.push('m');
-      punish = {...mk, fen: game.fen(), ply: game.history().length};
+      punish = {...mk, fen: game.fen(), ply: game.history().length}; punishUsed = true;
       updateName(); status = 'user'; renderAll(); return;
     }
   }
@@ -204,7 +204,7 @@ async function judgePunish(before, m){
   const ra = m.san === p.reply || !Engine.available() ? null : await Engine.analyse(g.fen(), 12, 1);
   if(sid !== sessionId || status !== 'checking') return;
   const you = m.san === p.reply ? p.best : ra ? -ra.cp : null, key = posKey(before);
-  if(you == null){ punishDone = {kind: 'unchecked', san: m.san, p}; punish = null; finish(); return; }
+  if(you == null){ punish = null; lastFeedback = {kind: 'unchecked', san: m.san}; nextTurn(); return; }
   const verdict = punishVerdict(p.best, you), first = failedHere !== key;
   if(first && (Daily.active === 'review' || Daily.active === 'weak')) Daily.count(Daily.active);
   if(verdict === 'punished'){
@@ -212,8 +212,9 @@ async function judgePunish(before, m){
     grade(key, first ? 'good' : 'hard', cardCtx(before)); keepPunishCard(key, p);
     const ex = await Explorer.get(before, 'lichess'), em = ex && ex.moves.find(x => x.san === m.san);
     if(sid !== sessionId) return;
-    punishDone = {kind: 'punished', san: m.san, you, p, score: em ? scoreFor(em, S.color) : null};
-    punish = null; failedHere = null; redo = []; finish();
+    // the game goes on: the verdict shows with your next move
+    lastFeedback = {kind: 'punished', san: m.san, you, p, score: em ? scoreFor(em, S.color) : null};
+    punish = null; failedHere = null; redo = []; reviewing = null; updateName(); nextTurn();
   } else {
     userMarks[userMarks.length - 1] = 'x'; redo = [];
     if(first){ stats.bad++; logMove(false); grade(key, 'again', cardCtx(before)); keepPunishCard(key, p); }
@@ -231,8 +232,8 @@ function keepPunishCard(key, p){
 function showPunish(){
   const w = wrongInfo; game.undo(); userMarks.pop();
   const m = game.move(w.p.reply); userMarks.push('u');
-  arrowsList = [[m.from, m.to]]; wrongInfo = null; punishDone = {kind: 'shown', san: m.san, p: w.p}; punish = null; failedHere = null;
-  updateName(); finish();
+  arrowsList = [[m.from, m.to]]; wrongInfo = null; lastFeedback = {kind: 'punishShown', san: m.san, p: w.p}; punish = null; failedHere = null; reviewing = null;
+  updateName(); nextTurn();
 }
 const mvNo = (fen, san) => fmtLine(fen, [san]);
 
@@ -262,7 +263,7 @@ function tryUserMove(from, to){
   if(!m) return false;
   selectedSq = null; hintOn = false; arrowsList = []; explainInfo = null;
   userMarks.push('u');
-  if(punish && before === punish.fen){ judgePunish(before, m).catch(err => { console.error(err); if(status === 'checking'){ punishDone = {kind: 'unchecked', san: m.san, p: punish}; punish = null; finish(); } }); return true; }
+  if(punish && before === punish.fen){ judgePunish(before, m).catch(err => { console.error(err); if(status === 'checking'){ lastFeedback = {kind: 'unchecked', san: m.san}; punish = null; finish(); } }); return true; }
   if(phase === 'book') judgeBook(before, m);
   else {
     status = 'checking'; lastFeedback = null; renderAll();
@@ -713,17 +714,6 @@ function renderStatus(){
     body += `<div id="insight" class="insight"></div>`;
     acts = [['Try again', retry, 'primary'], [w.phase === 'engine' ? 'Show the best move' : 'Show the main move', showBest], ['Play it out', playItOut]];
     if(w.phase === 'stats' && w.rareButSound) acts.push(['Continue with my move', keepMine]);
-  } else if(status === 'done' && punishDone){
-    const d = punishDone, p = d.p, line = p.pv && p.pv.length ? `<div class="engine"><span class="lbl">Stockfish's line:</span> ${esc(fmtLine(p.fen || game.fen(), p.pv))}</div>` : '';
-    cls += d.kind === 'shown' ? ' done' : ' good';
-    title = d.kind === 'punished' ? 'Mistake punished' : d.kind === 'shown' ? 'The punishment' : 'Line complete';
-    body = d.kind === 'punished' ? `${esc(d.san)} keeps the advantage (Stockfish ${fmtEval(d.you)}${d.san !== p.reply ? `; ${esc(p.reply)} was ${fmtEval(p.best)}` : ''}).${d.score != null ? ` Players at your level score ${pct(d.score)} with it.` : ''}`
-      : d.kind === 'shown' ? `${esc(p.reply)} punishes ${esc(p.san)} (Stockfish ${fmtEval(p.best)}). This position will come back for review.`
-      : `${esc(d.san)} could not be checked.`;
-    body += line;
-    acts = [['Play another line', startLine, 'primary']];
-    const due = dueCards().length; if(due) acts.push([`Review ${due} due position${due > 1 ? 's' : ''}`, startReview]);
-    acts.push(['Explain the last move', explainLast]);
   } else if(status === 'done'){
     cls += ' done'; title = ended ? 'Line ended' : game.game_over() ? 'Game over' : 'Line complete';
     body = ended ? `You ended the line after move ${Math.ceil(game.history().length / 2)}. ` + (ended.ev == null ? 'Stockfish is looking at the final position…' : `Stockfish: ${fmtEval(ended.ev)} for you, ${standing(ended.ev)}.`)
@@ -782,6 +772,8 @@ function feedbackLine(){
   if(f.kind === 'unchecked') return `${esc(f.san)} could not be checked, so the game simply continues.`;
   if(f.kind === 'shown') return `The main move was <b>${esc(f.san)}</b>. This position will come back for review.`;
   if(f.kind === 'shownLine') return `The line continues with <b>${esc(f.san)}</b>.`;
+  if(f.kind === 'punished') return ok(`Mistake punished: ${esc(f.san)}`) + ` keeps the advantage (Stockfish ${fmtEval(f.you)}${f.san !== f.p.reply ? `; ${esc(f.p.reply)} was ${fmtEval(f.p.best)}` : ''}).${f.score != null ? ` Players at your level score ${pct(f.score)} with it.` : ''}`;
+  if(f.kind === 'punishShown') return `<b>${esc(f.san)}</b> punishes ${esc(f.p.san)} (Stockfish ${fmtEval(f.p.best)}). This position will come back for review.`;
   if(f.kind === 'kept') return `You kept ${esc(f.san)}. It is sound, but the main move will be asked again later.`;
   return '';
 }
