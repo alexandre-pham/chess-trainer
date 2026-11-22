@@ -1,7 +1,8 @@
 // The Openings page: search list, variation, colour, mini board.
 import { $, esc, store } from './util.js';
 import { LINES, PIECES } from './data.js';
-import { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, matches, oppChoices, rebuildSel, selFlags } from './book.js';
+import { FAM, FAM_NAMES, LINE_PLIES, MINE, QUICK, S, isMine, matches, myReps, oppChoices, rebuildSel, saveMyReps, selFlags } from './book.js';
+import { parsePgn, studyPgnUrl } from './logic.js';
 import { progressCounts } from './srs.js';
 import { Explorer } from './explorer.js';
 
@@ -12,7 +13,13 @@ function renderColor(){ $('asW').setAttribute('aria-pressed', S.color === 'w'); 
  
  
 
-function setSel(prefix){ S.sel = prefix ? [prefix] : []; store.set('sel', S.sel); renderSetup(); }
+function setSel(prefix){
+  S.sel = prefix ? [prefix] : []; store.set('sel', S.sel);
+  // your own repertoire is for the colour you prepared it for
+  const r = isMine(prefix) && myReps().find(r => r.name === famOf(prefix));
+  if(r && r.color !== S.color){ S.color = r.color; store.set('color', r.color); renderColor(); }
+  renderSetup();
+}
 const famOf = p => p ? p.split(':')[0] : '';
 function famLabel(fam){ const e = [...FAM.get(fam).ecos].sort(); return `${fam} (${e.length > 1 ? e[0] + '–' + e[e.length-1] : e[0]})`; }
 function previewLine(cur){
@@ -31,8 +38,16 @@ function renderPickers(){
     `<optgroup label="Popular">${QUICK.filter(q => FAM.has(q)).map(opt).join('')}</optgroup>` +
     `<optgroup label="All openings, A to Z">${FAM_NAMES.map(opt).join('')}</optgroup>`;
   $('famSel').value = fam;
-  const f = fam && FAM.get(fam);
-  if(!f){ $('varSel').innerHTML = '<option>Choose an opening first</option>'; $('varSel').disabled = true; }
+  const f = fam && FAM.get(fam), mine = isMine(fam) && myReps().find(r => r.name === fam);
+  if(mine){
+    // your repertoire's chapters
+    const chs = [...new Set(mine.lines.map(l => l.c).filter(Boolean))];
+    $('varSel').disabled = !chs.length;
+    $('varSel').innerHTML = `<option value="${esc(fam)}">All chapters (${mine.lines.length} lines)</option>` +
+      chs.map(c => { const n = mine.lines.filter(l => l.c === c).length; return `<option value="${esc(fam + ': ' + c)}">${esc(c)} (${n} line${n > 1 ? 's' : ''})</option>`; }).join('');
+    $('varSel').value = cur;
+  }
+  else if(!f){ $('varSel').innerHTML = '<option>Choose an opening first</option>'; $('varSel').disabled = true; }
   else {
     const vars = [...f.vars.entries()].sort((a,b) => b[1] - a[1]);
     $('varSel').disabled = !vars.length;
@@ -41,7 +56,7 @@ function renderPickers(){
     $('varSel').value = cur;
   }
   const l = cur && previewLine(cur);
-  $('preview').innerHTML = l ? `<b>${esc(l[0])}</b>${esc(l[2].split(' ').map((m, i) => i % 2 === 0 ? (i/2 + 1) + '. ' + m : m).join(' '))}` : '';
+  $('preview').innerHTML = l ? `<b>${esc(l[0] || (S.color === 'w' ? 'White' : 'Black'))}</b>${esc(l[2].split(' ').map((m, i) => i % 2 === 0 ? (i/2 + 1) + '. ' + m : m).join(' '))}` : '';
 }
 
 // the opponent's opening: any opening that starts like yours, or one of its variations
@@ -118,13 +133,17 @@ function renderOpList(){
     rows.push({fam, pick, sub, i});
   }
   const row = r => `<button class="op-row" role="option" data-sel="${esc(r.pick)}" aria-selected="${r.fam === curFam}"><span class="op-eco-c">${esc(r.i.eco)}</span><span><span class="op-n">${esc(r.fam)}</span>${r.sub ? `<span class="op-v">${esc(r.sub)}</span>` : `<span class="op-m">${esc(r.i.num)}</span>`}</span><span class="op-c">${r.i.n} line${r.i.n > 1 ? 's' : ''}</span></button>`;
+  // your own repertoires first
+  const mine = myReps().filter(r => !q || r.name.toLowerCase().includes(q));
+  const mineHtml = mine.length ? '<div class="op-group">My repertoires</div>' + mine.map(r => `<div class="op-row mine" role="option" tabindex="0" data-sel="${esc(r.name)}" aria-selected="${r.name === curFam}"><span class="op-eco-c">${r.color === 'w' ? 'White' : 'Black'}</span><span><span class="op-n">${esc(r.name.slice(MINE.length))}</span><span class="op-m">${esc(r.lines[0].m.split(' ').slice(0, 6).map((m, i) => i % 2 === 0 ? (i / 2 + 1) + '. ' + m : m).join(' '))}</span></span><span class="op-c">${r.lines.length} line${r.lines.length > 1 ? 's' : ''} <button class="op-del" data-delrep="${esc(r.name)}" title="Delete this repertoire" aria-label="Delete ${esc(r.name)}">✕</button></span></div>`).join('') : '';
   let html;
-  if(!rows.length) html = `<div class="op-none">No opening matches “${esc(raw)}”. Try an ECO code like B20 or moves like 1. d4 Nf6.</div>`;
+  if(!rows.length && mine.length) html = '';
+  else if(!rows.length) html = `<div class="op-none">No opening matches “${esc(raw)}”. Try an ECO code like B20 or moves like 1. d4 Nf6.</div>`;
   else if(!q){
     const pop = QUICK.filter(f => FAM.has(f)).map(f => rows.find(r => r.fam === f)).filter(Boolean);
     html = (pop.length ? '<div class="op-group">Popular</div>' + pop.map(row).join('') : '') + '<div class="op-group">All openings, A to Z</div>' + rows.map(row).join('');
   } else html = rows.map(row).join('');
-  const el = $('opList'), top = el.scrollTop; el.innerHTML = html; el.scrollTop = top;
+  const el = $('opList'), top = el.scrollTop; el.innerHTML = mineHtml + html; el.scrollTop = top;
 }
 
 /* --- mini board of the chosen line --- */
@@ -143,6 +162,48 @@ function renderMini(){
   $('selName').textContent = cur ? (cur.includes(':') ? cur.slice(cur.indexOf(':') + 2) : cur) : '';
   $('selName').hidden = !cur;
   if(cur && cur.includes(':') && !$('preview').textContent.startsWith(famOf(cur) + ' · ')) $('preview').innerHTML = esc(famOf(cur)) + ' · ' + $('preview').innerHTML;
+}
+
+/* --- importing your own lines --- */
+let impColor = null;   // chosen by you, or else taken from the study's board orientation
+function renderImpColor(){ $('impColor').querySelectorAll('[data-c]').forEach(b => b.setAttribute('aria-pressed', String((impColor || S.color) === b.dataset.c))); }
+function impSay(text, kind){ $('impMsg').className = 'conn' + (kind ? ' ' + kind : ''); $('impMsg').textContent = text; }
+async function importLines(){
+  const link = $('impLink').value.trim();
+  let text = $('impPgn').value;
+  if(link){
+    const url = studyPgnUrl(link);
+    if(!url){ impSay('This is not a Lichess study link. It looks like https://lichess.org/study/…', 'err'); return; }
+    impSay('Downloading the study…');
+    try{
+      const r = await fetch(url);
+      if(r.status === 404 || r.status === 403){ impSay('Lichess did not share this study. Make it public or unlisted, or paste its PGN instead.', 'err'); return; }
+      if(!r.ok){ impSay(`Lichess answered with an error (${r.status}).`, 'err'); return; }
+      text = await r.text();
+    }catch(e){ impSay('Could not reach Lichess. Check your connection, or paste the PGN instead.', 'err'); return; }
+  }
+  if(!text.trim()){ impSay('Paste a Lichess study link or a PGN first.', 'err'); return; }
+  const p = parsePgn(text, Chess);
+  const seen = new Set(), lines = [];
+  const named = p.chapters.length > 1;
+  // up to move 40: openings, not whole games
+  for(const ch of p.chapters) for(const l of ch.lines){ const m = l.slice(0, 80).join(' '); if(seen.has(m)) continue; seen.add(m); lines.push(named && ch.name ? {c: ch.name.replace(/[:,]/g, ' -').trim(), m} : {m}); }
+  if(!lines.length){ impSay('No moves could be read from this PGN.', 'err'); return; }
+  const name = MINE + (($('impName').value.trim() || p.study || 'My repertoire').replace(/[:,]/g, ' -').trim());
+  const orient = p.chapters.map(c => c.orientation).find(Boolean);
+  const color = impColor || (orient === 'black' ? 'b' : orient === 'white' ? 'w' : S.color);
+  const reps = myReps().filter(r => r.name !== name), replaced = reps.length < myReps().length;
+  reps.push({name, color, lines, at: Date.now()});
+  saveMyReps(reps);
+  $('impBox').hidden = true; $('impOpen').hidden = false;
+  setSel(name);
+  const note = `${replaced ? 'Updated' : 'Imported'} ${name.slice(MINE.length)}: ${lines.length} line${lines.length > 1 ? 's' : ''}, as ${color === 'w' ? 'White' : 'Black'}.` + (p.skipped ? ` ${p.skipped} part${p.skipped > 1 ? 's' : ''} could not be read (a chapter from a set-up position, or an illegal move).` : '');
+  $('selMeta').textContent = note;
+}
+function deleteRep(name){
+  if(!confirm(`Delete ${name.slice(MINE.length)}? Your progress on its positions is kept.`)) return;
+  saveMyReps(myReps().filter(r => r.name !== name));
+  if(famOf(S.sel[0] || '') === name) setSel(''); else renderSetup();
 }
 
 export { previewLine, renderColor, renderSel, renderSetup };
@@ -166,7 +227,16 @@ function init(){
     const first = san.split(' ')[0];
     FAM_INFO.set(fam, {eco: e.length > 1 ? e[0] + '–' + e[e.length-1] : e[0], ecos: e.join(' ').toLowerCase(), san: san.toLowerCase(), num, first: first === 'e4' ? 'e4' : first === 'd4' ? 'd4' : 'other', n: f.lines.length, low: fam.toLowerCase()});
   });
-  $('opList').addEventListener('click', e => { const b = e.target.closest('[data-sel]'); if(b) setSel(b.dataset.sel); });
+  $('opList').addEventListener('click', e => {
+    const d = e.target.closest('[data-delrep]'); if(d){ e.stopPropagation(); deleteRep(d.dataset.delrep); return; }
+    const b = e.target.closest('[data-sel]'); if(b) setSel(b.dataset.sel);
+  });
+  $('impOpen').onclick = () => { ['impLink', 'impPgn', 'impName', 'impFile'].forEach(id => $(id).value = ''); $('impBox').hidden = false; $('impOpen').hidden = true; impColor = null; renderImpColor(); impSay(''); $('impLink').focus(); };
+  $('impCancel').onclick = () => { $('impBox').hidden = true; $('impOpen').hidden = false; };
+  $('impColor').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { impColor = b.dataset.c; renderImpColor(); });
+  $('impFile').onchange = async e => { const f = e.target.files[0]; if(f){ $('impPgn').value = await f.text(); $('impLink').value = ''; if(!$('impName').value) $('impName').value = f.name.replace(/\.pgn$/i, ''); } };
+  $('impGo').onclick = () => importLines().catch(e => impSay(e.message || 'The import failed.', 'err'));
+  ['impLink', 'impPgn', 'impName'].forEach(id => $(id).addEventListener('keydown', e => e.stopPropagation()));
   $('opSearch').addEventListener('input', () => { $('opList').scrollTop = 0; renderOpList(); });
   $('opSearch').addEventListener('keydown', e => { e.stopPropagation(); if(e.key === 'Enter'){ const b = $('opList').querySelector('[data-sel]'); if(b) setSel(b.dataset.sel); } });
 }

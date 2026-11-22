@@ -32,6 +32,10 @@ Live: https://alexandre-pham.github.io/chess-trainer/
 - **Chess.com**: with your username (no sign-in), your chess.com games are checked against
   your repertoire, and the statistics follow your chess.com level: your most played time
   control, and your rating converted to the Lichess scale.
+- **Your own lines**: import a PGN or a Lichess study (sidelines included, one variation per chapter) and train it
+  like any opening: the trainer plays the opponent's moves you prepared and expects yours. Synced with your account.
+- **Their move**: step back to a position where the opponent is to move and play their move yourself; the game goes on
+  from there.
 - **Squares**: play famous games on the board from their written moves (also the daily warm-up).
 - **Progress**: time per day, calendar, streaks, accuracy per opening.
 - **Accounts**: sign in with Google or with an email and a password (Firebase) to keep your progress, openings and settings on all
@@ -86,7 +90,7 @@ js/util.js         small helpers, browser storage
 js/data.js         loads the opening book and piece images
 js/book.js         opening families, selection and settings, book moves
 js/srs.js          spaced repetition cards and answer log
-js/logic.js        pure logic: review intervals, merging progress, your games vs your repertoire
+js/logic.js        pure logic: review intervals, merging progress, your games vs your repertoire, reading a PGN
 js/setup.js        Openings page
 js/settings.js     Settings page: chess.com username, Lichess sign-in, statistics
 js/sync.js         merging progress, accounts and sync (Firebase Auth + Firestore)

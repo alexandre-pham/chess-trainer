@@ -32,6 +32,20 @@
       <h1>Pick the opening you want to learn</h1>
       <p class="lede">The trainer plays the other side with the moves real players choose. When you leave the main lines, it shows what is usually played and explains why. Positions you miss come back for review until you know them.</p>
       <input type="search" class="search" id="opSearch" placeholder="Search 3,865 lines by name, ECO code or moves" autocomplete="off" spellcheck="false" aria-label="Search openings">
+      <div class="imp-open"><button class="btn quiet" id="impOpen">Import your own lines (PGN or Lichess study)</button></div>
+      <div class="imp" id="impBox" hidden>
+        <h2>Import your own lines</h2>
+        <p class="help">Paste a Lichess study link, paste a PGN, or open a .pgn file. Sidelines are included and each chapter becomes a variation. The trainer then plays the opponent's moves you prepared and expects yours.</p>
+        <input type="url" id="impLink" placeholder="Lichess study link (public or unlisted)" autocomplete="off">
+        <textarea id="impPgn" rows="4" placeholder="…or paste a PGN here" spellcheck="false"></textarea>
+        <label class="btn quiet imp-file">Open a .pgn file<input type="file" id="impFile" accept=".pgn,text/plain" hidden></label>
+        <div class="imp-row">
+          <input type="text" id="impName" placeholder="Name, e.g. My Catalan" autocomplete="off">
+          <div class="seg" role="group" aria-label="You play" id="impColor"><button data-c="w">White</button><button data-c="b">Black</button></div>
+        </div>
+        <div class="inline"><button class="btn primary" id="impGo">Import</button><button class="btn quiet" id="impCancel">Cancel</button></div>
+        <div class="conn" id="impMsg"></div>
+      </div>
       <div class="quick" id="opFirst"></div>
       <div class="fams" id="opList" role="listbox" aria-label="Openings"></div>
       <select id="famSel" hidden></select>

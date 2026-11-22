@@ -48,6 +48,51 @@ function mergePrefs(local, localAt, remote, remoteAt, keys){
   return {changes, at};
 }
 
+/* ================= your own lines from a PGN ================= */
+// Reads a PGN with one or more games (a Lichess study: one per chapter), sidelines included.
+// Returns {chapters: [{name, orientation, lines: [[san, ...], ...]}], study, skipped} where `skipped` counts
+// chapters that do not start from the usual position and moves that could not be read.
+function parsePgn(text, Chess){
+  const games = String(text || '').replace(/\r/g, '').split(/\n\s*\n(?=\s*\[)/), chapters = []; let study = '', skipped = 0;
+  for(const g of games){
+    const tags = {}; for(const m of g.matchAll(/^\s*\[(\w+)\s+"((?:[^"\\]|\\.)*)"\]/gm)) tags[m[1]] = m[2];
+    const body = g.replace(/^\s*\[.*\]\s*$/gm, '');
+    if(tags.FEN && tags.FEN !== new Chess().fen()){ skipped++; continue; }
+    // the move tree: '(' opens a sideline replacing the last move, ')' closes it
+    const root = {kids: []}; let cur = root; const stack = [];
+    const toks = body.replace(/\{[^}]*\}/g, ' ').replace(/;[^\n]*/g, ' ').replace(/\(/g, ' ( ').replace(/\)/g, ' ) ').split(/\s+/);
+    for(let t of toks){
+      if(!t) continue;
+      if(t === '('){ stack.push(cur); cur = cur.up || root; continue; }
+      if(t === ')'){ cur = stack.pop() || root; continue; }
+      if(/^\$\d+$/.test(t) || /^(1-0|0-1|1\/2-1\/2|\*)$/.test(t)) continue;
+      t = t.replace(/^\d+\.+/, '').replace(/[!?]+$/, '').replace(/^0-0-0/, 'O-O-O').replace(/^0-0/, 'O-O');
+      if(!t) continue;
+      const n = {san: t, up: cur, kids: []}; cur.kids.push(n); cur = n;
+    }
+    const lines = [];
+    const walk = (node, ch, path) => {
+      if(!node.kids.length){ if(path.length) lines.push(path); return; }
+      for(const k of node.kids){
+        const c = new Chess(ch.fen()), m = c.move(k.san);
+        if(!m){ skipped++; if(path.length) lines.push(path); continue; }
+        walk(k, c, [...path, m.san]);
+      }
+    };
+    walk(root, new Chess(), []);
+    if(!lines.length) continue;
+    const [s, c] = (tags.Event || '').includes(': ') ? tags.Event.split(/: (.*)/) : [tags.Event || '', ''];
+    study = study || tags.StudyName || s;
+    chapters.push({name: tags.ChapterName || c || (games.length > 1 ? tags.Event || '' : ''), orientation: (tags.Orientation || '').toLowerCase(), lines});
+  }
+  return {chapters, study, skipped};
+}
+// a Lichess study or chapter link to its PGN export
+function studyPgnUrl(link){
+  const m = String(link || '').match(/lichess\.org\/study\/([A-Za-z0-9]{8})(?:\/([A-Za-z0-9]{8}))?/);
+  return m ? `https://lichess.org/api/study/${m[1]}${m[2] ? '/' + m[2] : ''}.pgn` : null;
+}
+
 /* ================= your games against your repertoire ================= */
 // Follows a game's moves through the book (`candidates(fen)` lists the book moves) and says where it left it:
 // {verdict, outAt}. verdict.kind: 'you' (you left the book), 'opp' (your opponent did), 'end' (the book ended),
@@ -152,4 +197,4 @@ function punishVerdict(best, you){
   return you >= 50 ? 'partly' : 'missed';
 }
 
-export { RATING_GROUPS, SPEEDS_FOR, isMistake, mistakeSuspects, punishVerdict, ccOpening, mergeCards, mergePrefs, mergeTime, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };
+export { RATING_GROUPS, SPEEDS_FOR, isMistake, mistakeSuspects, punishVerdict, ccOpening, mergeCards, mergePrefs, mergeTime, parsePgn, studyPgnUrl, mostPlayed, normChesscomGame, normLichessGame, ratingGroups, repertoireExit, schedule, toLichessRating, unionInto };

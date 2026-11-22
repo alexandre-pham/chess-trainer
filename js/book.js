@@ -52,6 +52,37 @@ function rebuildSel(){
     if(S.opp && matches(l[1], oppFam)) famFlags[i] = 1;
   });
 }
+/* ================= your own repertoires ================= */
+// Imported lines ({name: '★ …', color, lines: [{c: chapter, m: 'e4 e5 …'}]}) join the book after the built-in lines,
+// so training, reviews and your games check treat them like any other line.
+const MINE = '★ ';
+const BASE = LINES.length;
+let touched = [];   // what loading them added to POS, to take it back
+const myReps = () => store.get('myReps', []);
+const isMine = p => !!p && p.startsWith(MINE);
+function loadMyLines(){
+  for(const [k, created, san] of touched.reverse()){
+    const p = POS[k]; if(!p) continue;
+    if(created){ delete POS[k]; continue; }
+    const kept = (p[2][san] || []).filter(i => i < BASE);
+    if(kept.length) p[2][san] = kept; else delete p[2][san];
+  }
+  touched = []; LINES.length = BASE; LINE_PLIES.length = BASE;
+  for(const r of myReps()) for(const l of r.lines){
+    const idx = LINES.length, sans = l.m.split(' '), g = new Chess();
+    LINES.push(['', l.c ? `${r.name}: ${l.c}` : r.name, l.m]); LINE_PLIES.push(sans.length);
+    for(const san of sans){
+      const k = posKey(g.fen()); let p = POS[k];
+      if(!p){ p = POS[k] = [idx, 0, {}]; touched.push([k, true]); }
+      (p[2][san] = p[2][san] || []).push(idx); touched.push([k, false, san]);
+      if(!g.move(san)) break;
+    }
+  }
+  rebuildSel();
+}
+function saveMyReps(reps){ store.set('myReps', reps); loadMyLines(); }
+loadMyLines();
+
 // openings the opponent can choose against your selection: those starting with your opening's first move (yours and theirs as Black)
 function oppChoices(){
   const n = S.color === 'w' ? 1 : 2, starts = new Set();
@@ -95,7 +126,7 @@ function inOppOpening(fen){
   return !!(p && p[1] && matches(LINES[p[0]][1], S.opp.split(':')[0]));
 }
 
-export { FAM, FAM_NAMES, LINE_PLIES, QUICK, S, bookMoves, candidates, famFlags, fenAfter, inOppOpening, matches, nameAfter, oppChoices, rebuildSel, selFamilies, selFlags, shortestLine };
+export { FAM, FAM_NAMES, LINE_PLIES, MINE, QUICK, S, isMine, loadMyLines, myReps, saveMyReps, bookMoves, candidates, famFlags, fenAfter, inOppOpening, matches, nameAfter, oppChoices, rebuildSel, selFamilies, selFlags, shortestLine };
 
 /* start-up: event bindings and first renders, called once by main.js */
 function init(){

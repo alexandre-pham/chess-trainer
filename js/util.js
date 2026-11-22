@@ -4,7 +4,7 @@ import { PIECES } from './data.js';
 /* ================= helpers ================= */
 const $ = id => document.getElementById(id);
 // settings shared by your devices: each change is time-stamped so the newest one wins when syncing
-const SYNCED = ['sel', 'color', 'opp', 'punish', 'maxMove', 'useEngine', 'ratings', 'speeds', 'ccUser', 'ccProfile', 'ccAuto', 'cSide', 'cLen', 'cNext', 'dailyBudget'];
+const SYNCED = ['sel', 'color', 'opp', 'punish', 'maxMove', 'useEngine', 'ratings', 'speeds', 'ccUser', 'ccProfile', 'ccAuto', 'cSide', 'cLen', 'cNext', 'dailyBudget', 'myReps'];
 const store = {
   get(k, d){ try{ const v = localStorage.getItem('ot:'+k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem('ot:'+k, JSON.stringify(v));

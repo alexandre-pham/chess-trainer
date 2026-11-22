@@ -7,7 +7,7 @@ import { C, coordLog, coordRounds } from './squares.js';
 import { Daily, renderToday } from './daily.js';
 import { openProgress, timeLog } from './progress.js';
 import { renderCc, renderExplorerChoices } from './settings.js';
-import { S, rebuildSel } from './book.js';
+import { S, loadMyLines, rebuildSel } from './book.js';
 import { Explorer } from './explorer.js';
 import { firebaseConfig } from './firebase-config.js';
 import { currentPage } from './nav.js';
@@ -36,8 +36,8 @@ function mergeSettings(prefs, prefsAt){
   // written directly: store.set would stamp them as changed on this device
   try{ for(const [k, v] of Object.entries(changes)) localStorage.setItem('ot:' + k, JSON.stringify(v)); localStorage.setItem('ot:prefsAt', JSON.stringify(at)); }catch(e){}
   const keys = Object.keys(changes); if(!keys.length) return false;
-  for(const k of keys){ const [o, f] = MEM[k] || [S, k]; o[f] = changes[k]; }
-  rebuildSel();
+  for(const k of keys){ if(k === 'myReps') continue; const [o, f] = MEM[k] || [S, k]; o[f] = changes[k]; }
+  if(keys.includes('myReps')) loadMyLines(); else rebuildSel();
   if(keys.includes('ratings') || keys.includes('speeds')) Explorer.reset();
   renderCc(); renderExplorerChoices();
   return true;
