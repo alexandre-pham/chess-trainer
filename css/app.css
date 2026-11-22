@@ -363,7 +363,7 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
 .actions .btn{white-space:nowrap}
 .status{border-radius:10px;padding:16px 18px}
 .status .st-title{font-family:var(--serif);font-weight:500;font-size:20px}
-.stats[hidden]{display:none !important}
+.stats[hidden],.stats.is-empty{display:none !important}
 /* today */
 .td-head{margin:0 0 20px}
 .td-top{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:20px}
@@ -407,6 +407,20 @@ header.top{align-items:center;gap:32px;margin:0 0 32px;background:var(--surface)
   .wrap:has(> #train:not([hidden])) header.top,.wrap:has(> #coords:not([hidden])) header.top{margin-bottom:16px}
   .wrap:has(> #train:not([hidden])){padding-bottom:12px}
   #train.train{--bd:min(calc(100vh - 160px),calc(100vw - 440px));grid-template-columns:calc(var(--bd) + 26px) minmax(320px,520px);justify-content:center}
+  /* a fixed panel as tall as the board and its buttons: only the message area scrolls, nothing else moves */
+  #train .panel{display:flex;flex-direction:column;height:calc(var(--bd) + 52px)}
+  #train .panel > *{flex:none}
+  #train .op-name{height:2.24em;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  #train .op-eco,#train .op-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #train .op-sub{margin-bottom:10px}
+  #train .moves{margin-bottom:12px;height:clamp(106px,calc(var(--bd) * .22),199px);box-sizing:border-box}
+  #train .mt{height:100%;max-height:none}
+  #train .panel > .status{flex:1 1 auto;min-height:72px;overflow-y:auto;margin-bottom:12px}
+  #train .actions{margin-bottom:12px}
+  #train .eng-lines{min-height:131px;margin-bottom:12px}
+  #train .stats{padding-top:8px}
+  #train .stats.is-empty{display:flex !important;visibility:hidden}
+  #train .footnote{margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .wrap:has(> #coords:not([hidden])){padding-bottom:12px}
   #coords .c-train{--bd:min(calc(100vh - 160px),calc(100vw - 440px));grid-template-columns:var(--bd) minmax(320px,520px);justify-content:center}
   #coords .c-moves{max-height:max(190px,calc(var(--bd) - 420px))}

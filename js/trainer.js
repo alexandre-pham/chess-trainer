@@ -638,7 +638,7 @@ function drawEngine(fen, r, fixedCp, note){
 }
 function renderName(){
   const el = $('opName');
-  if(lastNamed){ el.textContent = lastNamed[1]; $('opEco').textContent = lastNamed[0]; }
+  if(lastNamed){ el.textContent = lastNamed[1]; el.title = lastNamed[1]; $('opEco').textContent = lastNamed[0]; }
   else { el.textContent = 'Starting position'; $('opEco').innerHTML = '&nbsp;'; }
   el.classList.toggle('fresh', nameFresh); if(nameFresh){ nameFresh = false; setTimeout(() => el.classList.remove('fresh'), 1200); }
   $('opSub').textContent = 'Training: ' + S.sel.join(', ') + (S.opp ? ', against the ' + S.opp : '');
@@ -753,7 +753,7 @@ function renderStatus(){
     if(game.history().length && !redo.length) acts.push(['End here', endHere]);
   }
   st.className = cls;
-  st.innerHTML = `${tag}<div class="st-title">${title}</div>${body ? `<div class="st-body">${body}</div>` : ''}`;
+  st.innerHTML = `${tag}<div class="st-title">${title}</div>${body ? `<div class="st-body">${body}</div>` : ''}`; st.scrollTop = 0;
   if(status === 'wrong' && wrongInfo){ renderInsight(wrongInfo); }
   else if(explainInfo){ st.insertAdjacentHTML('beforeend', '<div id="insight" class="insight"></div>'); renderInsight(explainInfo); }
   ac.innerHTML = '';
@@ -827,7 +827,7 @@ let drag = null;
 const sqAt = (x, y) => { const el = document.elementFromPoint(x, y); const s = el && el.closest && el.closest('.sq'); return s ? s.dataset.sq : null; };
 
 /* --- training stats only once there is something to show --- */
-function syncStats(){ const st = document.querySelector('#train .stats'); if(st) st.hidden = ['sGood', 'sBad', 'sDue', 'sKnown'].every(id => $(id).textContent === '0'); }
+function syncStats(){ const st = document.querySelector('#train .stats'); if(st) st.classList.toggle('is-empty', ['sGood', 'sBad', 'sDue', 'sKnown'].every(id => $(id).textContent === '0')); }
 
 export { BRUSH, enterTraining, lineInProgress, soundMove, restoreSession, explainInfo, files, game, lastNamed, newSession, phase, renderAll, renderStatus, reviewing, setExplainInfo, setTrainAlive, startLine, startReview, startReviewKey, syncStats, trainAlive, wrongInfo };
 
